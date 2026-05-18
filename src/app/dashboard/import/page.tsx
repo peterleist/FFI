@@ -215,25 +215,25 @@ export default function ImportPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-[#f1f5f9]">Import</h1>
-          <p className="text-[#64748b] text-sm mt-0.5">CSV fájl importálása bankból</p>
+          <h1 className="text-2xl font-bold text-foreground">Import</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">CSV fájl importálása bankból</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card className="bg-[#111118] border-[#1e1e2e]">
+          <Card className="bg-card border-border">
             <CardHeader>
-              <CardTitle className="text-base text-[#f1f5f9]">Beállítások</CardTitle>
+              <CardTitle className="text-base text-foreground">Beállítások</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <p className="text-xs text-[#64748b] mb-1.5">Bank formátum</p>
+                <p className="text-xs text-muted-foreground mb-1.5">Bank formátum</p>
                 <Select value={bankFormat} onValueChange={setBankFormat}>
-                  <SelectTrigger className="bg-[#1e1e2e] border-[#2e2e3e] text-[#f1f5f9]">
+                  <SelectTrigger className="bg-muted border-border text-foreground">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#111118] border-[#1e1e2e]">
+                  <SelectContent className="bg-card border-border">
                     {BANK_FORMATS.map((f) => (
-                      <SelectItem key={f.value} value={f.value} className="text-[#f1f5f9]">
+                      <SelectItem key={f.value} value={f.value} className="text-foreground">
                         {f.label}
                       </SelectItem>
                     ))}
@@ -241,14 +241,14 @@ export default function ImportPage() {
                 </Select>
               </div>
               <div>
-                <p className="text-xs text-[#64748b] mb-1.5">Célszámla</p>
+                <p className="text-xs text-muted-foreground mb-1.5">Célszámla</p>
                 <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
-                  <SelectTrigger className="bg-[#1e1e2e] border-[#2e2e3e] text-[#f1f5f9]">
+                  <SelectTrigger className="bg-muted border-border text-foreground">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="bg-[#111118] border-[#1e1e2e]">
+                  <SelectContent className="bg-card border-border">
                     {accounts.map((a) => (
-                      <SelectItem key={a.id} value={a.id} className="text-[#f1f5f9]">
+                      <SelectItem key={a.id} value={a.id} className="text-foreground">
                         {a.name}
                       </SelectItem>
                     ))}
@@ -258,15 +258,15 @@ export default function ImportPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-[#111118] border-[#1e1e2e] md:col-span-1">
+          <Card className="bg-card border-border md:col-span-1">
             <CardHeader>
-              <CardTitle className="text-base text-[#f1f5f9]">OTP CSV formátum</CardTitle>
+              <CardTitle className="text-base text-foreground">OTP CSV formátum</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-xs text-[#64748b]">
+              <p className="text-xs text-muted-foreground">
                 Az OTP Bank internet bankjából exportált CSV fájl formátuma:
               </p>
-              <pre className="mt-2 text-xs bg-[#1e1e2e] rounded p-3 text-[#64748b] overflow-x-auto">
+              <pre className="mt-2 text-xs bg-muted rounded p-3 text-muted-foreground overflow-x-auto">
                 {`dátum;leírás;összeg;egyenleg
 2024.05.01;Élelmiszer;-15000;1235000
 2024.05.05;Fizetés;650000;1885000`}
@@ -280,8 +280,8 @@ export default function ImportPage() {
           className={cn(
             'border-2 border-dashed rounded-xl p-12 text-center transition-all cursor-pointer',
             isDragging
-              ? 'border-slate-400 bg-slate-400/5'
-              : 'border-[#2e2e3e] hover:border-slate-400/50 hover:bg-[#111118]'
+              ? 'border-slate-400 bg-muted/40'
+              : 'border-border hover:border-slate-400/50 hover:bg-card'
           )}
           onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
           onDragLeave={() => setIsDragging(false)}
@@ -295,11 +295,11 @@ export default function ImportPage() {
             className="hidden"
             onChange={handleFileChange}
           />
-          <Upload className="w-12 h-12 text-[#64748b] mx-auto mb-4" />
-          <p className="text-lg font-medium text-[#f1f5f9] mb-1">
+          <Upload className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <p className="text-lg font-medium text-foreground mb-1">
             Húzd ide a CSV fájlt
           </p>
-          <p className="text-sm text-[#64748b]">
+          <p className="text-sm text-muted-foreground">
             vagy kattints a fájl kiválasztásához (.csv, .txt)
           </p>
         </div>
@@ -316,13 +316,13 @@ export default function ImportPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#f1f5f9]">Import áttekintése</h1>
+          <h1 className="text-2xl font-bold text-foreground">Import áttekintése</h1>
           <div className="flex items-center gap-3 mt-1">
-            <Badge className="bg-[#1e1e2e] text-[#64748b] border-[#2e2e3e] border">
+            <Badge className="bg-muted text-muted-foreground border-border border">
               <FileText className="w-3 h-3 mr-1" />
               {fileName}
             </Badge>
-            <span className="text-sm text-[#64748b]">
+            <span className="text-sm text-muted-foreground">
               {totalCount} tranzakció importálva
             </span>
           </div>
@@ -331,14 +331,14 @@ export default function ImportPage() {
           <Button
             variant="outline"
             onClick={() => { setStep(1); setRows([]) }}
-            className="border-[#2e2e3e] text-[#64748b] hover:text-[#f1f5f9] hover:bg-[#1e1e2e]"
+            className="border-border text-muted-foreground hover:text-foreground hover:bg-muted"
           >
             Vissza
           </Button>
           <Button
             onClick={() => toggleAll(true)}
             variant="outline"
-            className="border-[#2e2e3e] text-[#64748b] hover:text-[#f1f5f9] hover:bg-[#1e1e2e] gap-2"
+            className="border-border text-muted-foreground hover:text-foreground hover:bg-muted gap-2"
           >
             <CheckCheck className="w-4 h-4" />
             Összes kijelölése
@@ -346,7 +346,7 @@ export default function ImportPage() {
           <Button
             onClick={handleConfirm}
             disabled={selectedRows.length === 0}
-            className="bg-slate-600 hover:bg-slate-500 text-white gap-2"
+            className="bg-primary hover:bg-primary/90 text-white gap-2"
           >
             <Check className="w-4 h-4" />
             Véglegesítés ({approvedCount})
@@ -356,34 +356,34 @@ export default function ImportPage() {
 
       {/* Summary */}
       <div className="grid grid-cols-3 gap-4">
-        <Card className="bg-[#111118] border-[#1e1e2e]">
+        <Card className="bg-card border-border">
           <CardContent className="p-4">
-            <p className="text-xs text-[#64748b]">Importált</p>
-            <p className="text-xl font-bold text-[#f1f5f9]">{totalCount}</p>
+            <p className="text-xs text-muted-foreground">Importált</p>
+            <p className="text-xl font-bold text-foreground">{totalCount}</p>
           </CardContent>
         </Card>
-        <Card className="bg-[#111118] border-[#1e1e2e]">
+        <Card className="bg-card border-border">
           <CardContent className="p-4">
-            <p className="text-xs text-[#64748b]">Kijelölve</p>
+            <p className="text-xs text-muted-foreground">Kijelölve</p>
             <p className="text-xl font-bold text-green-400">{approvedCount}</p>
           </CardContent>
         </Card>
-        <Card className="bg-[#111118] border-[#1e1e2e]">
+        <Card className="bg-card border-border">
           <CardContent className="p-4">
-            <p className="text-xs text-[#64748b]">Eltávolítva</p>
+            <p className="text-xs text-muted-foreground">Eltávolítva</p>
             <p className="text-xl font-bold text-red-400">{totalCount - rows.length}</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Review table */}
-      <Card className="bg-[#111118] border-[#1e1e2e]">
+      <Card className="bg-card border-border">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#1e1e2e]">
-                  <th className="text-left text-[#64748b] font-medium p-4 w-10">
+                <tr className="border-b border-border">
+                  <th className="text-left text-muted-foreground font-medium p-4 w-10">
                     <input
                       type="checkbox"
                       checked={rows.every((r) => r.selected)}
@@ -391,11 +391,11 @@ export default function ImportPage() {
                       className="accent-slate-400"
                     />
                   </th>
-                  <th className="text-left text-[#64748b] font-medium p-4">Dátum</th>
-                  <th className="text-left text-[#64748b] font-medium p-4">Leírás</th>
-                  <th className="text-left text-[#64748b] font-medium p-4">Kategória</th>
-                  <th className="text-right text-[#64748b] font-medium p-4">Összeg</th>
-                  <th className="text-[#64748b] font-medium p-4 w-10"></th>
+                  <th className="text-left text-muted-foreground font-medium p-4">Dátum</th>
+                  <th className="text-left text-muted-foreground font-medium p-4">Leírás</th>
+                  <th className="text-left text-muted-foreground font-medium p-4">Kategória</th>
+                  <th className="text-right text-muted-foreground font-medium p-4">Összeg</th>
+                  <th className="text-muted-foreground font-medium p-4 w-10"></th>
                 </tr>
               </thead>
               <tbody>
@@ -403,8 +403,8 @@ export default function ImportPage() {
                   <tr
                     key={row.id}
                     className={cn(
-                      'border-b border-[#1e1e2e] transition-colors',
-                      row.selected ? 'hover:bg-[#1e1e2e]/50' : 'opacity-50'
+                      'border-b border-border transition-colors',
+                      row.selected ? 'hover:bg-muted/50' : 'opacity-50'
                     )}
                   >
                     <td className="p-4">
@@ -415,14 +415,14 @@ export default function ImportPage() {
                         className="accent-slate-400"
                       />
                     </td>
-                    <td className="p-4 text-[#64748b] whitespace-nowrap">
+                    <td className="p-4 text-muted-foreground whitespace-nowrap">
                       {format(new Date(row.date), 'yyyy. MM. dd.', { locale: hu })}
                     </td>
                     <td className="p-4">
                       <Input
                         value={row.description}
                         onChange={(e) => updateRow(row.id, { description: e.target.value })}
-                        className="bg-[#1e1e2e] border-[#2e2e3e] text-[#f1f5f9] h-8 text-sm min-w-48"
+                        className="bg-muted border-border text-foreground h-8 text-sm min-w-48"
                       />
                     </td>
                     <td className="p-4">
@@ -430,13 +430,13 @@ export default function ImportPage() {
                         value={row.categoryId ?? ''}
                         onValueChange={(v: string) => updateRow(row.id, { categoryId: v || null })}
                       >
-                        <SelectTrigger className="bg-[#1e1e2e] border-[#2e2e3e] text-[#f1f5f9] h-8 text-sm w-44">
+                        <SelectTrigger className="bg-muted border-border text-foreground h-8 text-sm w-44">
                           <SelectValue placeholder="Kategória" />
                         </SelectTrigger>
-                        <SelectContent className="bg-[#111118] border-[#1e1e2e]">
-                          <SelectItem value="" className="text-[#64748b]">Nincs</SelectItem>
+                        <SelectContent className="bg-card border-border">
+                          <SelectItem value="" className="text-muted-foreground">Nincs</SelectItem>
                           {expenseCategories.map((c) => (
-                            <SelectItem key={c.id} value={c.id} className="text-[#f1f5f9]">
+                            <SelectItem key={c.id} value={c.id} className="text-foreground">
                               {c.icon} {c.name}
                             </SelectItem>
                           ))}
@@ -455,7 +455,7 @@ export default function ImportPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-[#64748b] hover:text-red-400 hover:bg-red-500/10"
+                        className="h-7 w-7 text-muted-foreground hover:text-red-400 hover:bg-red-500/10"
                         onClick={() => removeRow(row.id)}
                       >
                         <Trash2 className="w-3.5 h-3.5" />

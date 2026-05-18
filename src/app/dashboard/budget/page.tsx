@@ -35,7 +35,7 @@ const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => {
 const SHORT_MONTHS = ['Jan', 'Feb', 'Már', 'Ápr', 'Máj', 'Jún', 'Júl', 'Aug', 'Sze', 'Okt', 'Nov', 'Dec']
 
 function getHeatColor(pct: number): string {
-  if (pct === 0) return 'bg-[#1e1e2e] text-[#64748b]'
+  if (pct === 0) return 'bg-muted text-muted-foreground'
   if (pct < 50) return 'bg-green-500/10 text-green-400'
   if (pct < 80) return 'bg-amber-500/10 text-amber-400'
   if (pct < 100) return 'bg-orange-500/10 text-orange-400'
@@ -111,16 +111,16 @@ export default function BudgetPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#f1f5f9]">Költségvetés</h1>
-          <p className="text-[#64748b] text-sm mt-0.5">Havi kiadási tervek nyomon követése</p>
+          <h1 className="text-2xl font-bold text-foreground">Költségvetés</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">Havi kiadási tervek nyomon követése</p>
         </div>
         <Select value={selectedValue} onValueChange={setSelectedValue}>
-          <SelectTrigger className="w-48 bg-[#1e1e2e] border-[#2e2e3e] text-[#f1f5f9]">
+          <SelectTrigger className="w-48 bg-muted border-border text-foreground">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent className="bg-[#111118] border-[#1e1e2e]">
+          <SelectContent className="bg-card border-border">
             {MONTH_OPTIONS.map((m) => (
-              <SelectItem key={m.value} value={m.value} className="text-[#f1f5f9]">
+              <SelectItem key={m.value} value={m.value} className="text-foreground">
                 {m.label}
               </SelectItem>
             ))}
@@ -129,11 +129,11 @@ export default function BudgetPage() {
       </div>
 
       <Tabs defaultValue="monthly">
-        <TabsList className="bg-[#1e1e2e] border border-[#2e2e3e]">
-          <TabsTrigger value="monthly" className="data-[state=active]:bg-slate-600 data-[state=active]:text-white">
+        <TabsList className="bg-muted border border-border">
+          <TabsTrigger value="monthly" className="data-[state=active]:bg-primary data-[state=active]:text-white">
             Havi nézet
           </TabsTrigger>
-          <TabsTrigger value="annual" className="data-[state=active]:bg-slate-600 data-[state=active]:text-white">
+          <TabsTrigger value="annual" className="data-[state=active]:bg-primary data-[state=active]:text-white">
             Éves nézet
           </TabsTrigger>
         </TabsList>
@@ -141,25 +141,25 @@ export default function BudgetPage() {
         <TabsContent value="monthly" className="space-y-4 mt-4">
           {/* Summary cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Card className="bg-[#111118] border-[#1e1e2e]">
+            <Card className="bg-card border-border">
               <CardContent className="p-4">
-                <p className="text-xs text-[#64748b]">Tervezett kiadás</p>
-                <p className="text-xl font-bold text-[#f1f5f9]">
+                <p className="text-xs text-muted-foreground">Tervezett kiadás</p>
+                <p className="text-xl font-bold text-foreground">
                   {formatCurrency(budgetSummary.totalBudgeted)}
                 </p>
               </CardContent>
             </Card>
-            <Card className="bg-[#111118] border-[#1e1e2e]">
+            <Card className="bg-card border-border">
               <CardContent className="p-4">
-                <p className="text-xs text-[#64748b]">Tényleges kiadás</p>
+                <p className="text-xs text-muted-foreground">Tényleges kiadás</p>
                 <p className="text-xl font-bold text-red-400">
                   {formatCurrency(budgetSummary.totalSpent)}
                 </p>
               </CardContent>
             </Card>
-            <Card className="bg-[#111118] border-[#1e1e2e]">
+            <Card className="bg-card border-border">
               <CardContent className="p-4">
-                <p className="text-xs text-[#64748b]">Különbség</p>
+                <p className="text-xs text-muted-foreground">Különbség</p>
                 <p
                   className={`text-xl font-bold ${
                     budgetSummary.difference >= 0 ? 'text-green-400' : 'text-red-400'
@@ -173,9 +173,9 @@ export default function BudgetPage() {
           </div>
 
           {/* Category rows */}
-          <Card className="bg-[#111118] border-[#1e1e2e]">
+          <Card className="bg-card border-border">
             <CardHeader>
-              <CardTitle className="text-base text-[#f1f5f9]">Kategóriák</CardTitle>
+              <CardTitle className="text-base text-foreground">Kategóriák</CardTitle>
             </CardHeader>
             <CardContent className="space-y-5">
               {budgetSummary.rows.map(({ cat, spent, budget, remaining, pct }) => (
@@ -183,7 +183,7 @@ export default function BudgetPage() {
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="text-lg">{cat.icon}</span>
-                      <span className="text-sm font-medium text-[#f1f5f9] truncate">
+                      <span className="text-sm font-medium text-foreground truncate">
                         {cat.name}
                       </span>
                       {pct > 100 && (
@@ -199,7 +199,7 @@ export default function BudgetPage() {
                             type="number"
                             value={editBudget}
                             onChange={(e) => setEditBudget(e.target.value)}
-                            className="w-28 h-7 bg-[#1e1e2e] border-[#2e2e3e] text-[#f1f5f9] text-sm"
+                            className="w-28 h-7 bg-muted border-border text-foreground text-sm"
                           />
                           <Button
                             variant="ghost"
@@ -212,7 +212,7 @@ export default function BudgetPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 text-[#64748b] hover:bg-[#1e1e2e]"
+                            className="h-7 w-7 text-muted-foreground hover:bg-muted"
                             onClick={() => setEditingCategoryId(null)}
                           >
                             <X className="w-3.5 h-3.5" />
@@ -226,7 +226,7 @@ export default function BudgetPage() {
                                 ? 'text-red-400'
                                 : pct > 80
                                 ? 'text-amber-400'
-                                : 'text-[#64748b]'
+                                : 'text-muted-foreground'
                             }`}
                           >
                             {formatCurrency(spent)} / {formatCurrency(budget)}
@@ -234,7 +234,7 @@ export default function BudgetPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6 text-[#64748b] hover:text-[#f1f5f9] hover:bg-[#1e1e2e]"
+                            className="h-6 w-6 text-muted-foreground hover:text-foreground hover:bg-muted"
                             onClick={() => startEdit(cat.id, cat.monthlyBudget)}
                           >
                             <Pencil className="w-3 h-3" />
@@ -246,13 +246,13 @@ export default function BudgetPage() {
                   <div className="flex items-center gap-3">
                     <Progress
                       value={Math.min(pct, 100)}
-                      className="flex-1 h-2 bg-[#1e1e2e]"
+                      className="flex-1 h-2 bg-muted"
                     />
-                    <span className="text-xs text-[#64748b] w-10 text-right">
+                    <span className="text-xs text-muted-foreground w-10 text-right">
                       {pct.toFixed(0)}%
                     </span>
                   </div>
-                  <p className="text-xs text-[#64748b]">
+                  <p className="text-xs text-muted-foreground">
                     {remaining >= 0
                       ? `Maradék: ${formatCurrency(remaining)}`
                       : `Túllépés: ${formatCurrency(Math.abs(remaining))}`}
@@ -264,19 +264,19 @@ export default function BudgetPage() {
         </TabsContent>
 
         <TabsContent value="annual" className="mt-4">
-          <Card className="bg-[#111118] border-[#1e1e2e] overflow-x-auto">
+          <Card className="bg-card border-border overflow-x-auto">
             <CardHeader>
-              <CardTitle className="text-base text-[#f1f5f9]">Éves áttekintő (hőtérkép)</CardTitle>
+              <CardTitle className="text-base text-foreground">Éves áttekintő (hőtérkép)</CardTitle>
             </CardHeader>
             <CardContent>
               <table className="w-full text-sm">
                 <thead>
                   <tr>
-                    <th className="text-left text-[#64748b] font-medium py-2 pr-4 whitespace-nowrap">
+                    <th className="text-left text-muted-foreground font-medium py-2 pr-4 whitespace-nowrap">
                       Kategória
                     </th>
                     {annualMonths.map((m) => (
-                      <th key={m.label} className="text-center text-[#64748b] font-medium py-2 px-1 min-w-12">
+                      <th key={m.label} className="text-center text-muted-foreground font-medium py-2 px-1 min-w-12">
                         {m.label}
                       </th>
                     ))}
@@ -284,8 +284,8 @@ export default function BudgetPage() {
                 </thead>
                 <tbody>
                   {expenseCategories.map((cat) => (
-                    <tr key={cat.id} className="border-t border-[#1e1e2e]">
-                      <td className="py-2 pr-4 text-[#f1f5f9] whitespace-nowrap">
+                    <tr key={cat.id} className="border-t border-border">
+                      <td className="py-2 pr-4 text-foreground whitespace-nowrap">
                         {cat.icon} {cat.name}
                       </td>
                       {annualMonths.map((m) => {

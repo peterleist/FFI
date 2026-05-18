@@ -12,21 +12,20 @@ export default function DashboardLayout({
   return (
     <DbSyncProvider>
       <SetupGate>
-        <div className="flex h-screen bg-[#0a0a0f]">
+        <div className="flex h-screen bg-background">
           <Sidebar />
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-            {/* Top bar */}
             <UserBar />
 
             {/* Mobile header */}
-            <header className="md:hidden flex items-center justify-between px-4 py-3 bg-[#111118] border-b border-[#1e1e2e]">
+            <header className="md:hidden flex items-center justify-between px-4 py-3 bg-card border-b border-border">
               <div className="flex items-center gap-3">
                 <MobileSidebar />
                 <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded bg-slate-200 flex items-center justify-center">
-                    <Flame className="w-4 h-4 text-[#111118]" />
+                  <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-600 to-purple-800 flex items-center justify-center">
+                    <Flame className="w-4 h-4 text-white" />
                   </div>
-                  <span className="font-bold text-[#f1f5f9]">PEFI</span>
+                  <span className="font-bold text-foreground">PEFI</span>
                 </div>
               </div>
             </header>

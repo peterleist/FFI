@@ -54,13 +54,13 @@ function PositionHistoryChart({ ticker }: { ticker: string }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-40 text-[#64748b]">
+      <div className="flex items-center justify-center h-40 text-muted-foreground">
         <Loader2 className="w-5 h-5 animate-spin mr-2" /> Adatok betöltése…
       </div>
     )
   }
   if (chartData.length === 0) {
-    return <p className="text-center text-[#64748b] text-sm py-8">Nincs historikus adat</p>
+    return <p className="text-center text-muted-foreground text-sm py-8">Nincs historikus adat</p>
   }
 
   const firstClose = chartData[0]?.ár ?? 0
@@ -73,7 +73,7 @@ function PositionHistoryChart({ ticker }: { ticker: string }) {
     <div className="space-y-3">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3">
-          <span className="text-lg font-bold text-[#f1f5f9]">
+          <span className="text-lg font-bold text-foreground">
             {lastClose.toLocaleString('hu-HU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currency}
           </span>
           <span className={`text-sm font-semibold flex items-center gap-1 ${positive ? 'text-green-400' : 'text-red-400'}`}>
@@ -82,12 +82,12 @@ function PositionHistoryChart({ ticker }: { ticker: string }) {
           </span>
         </div>
         <Select value={range} onValueChange={setRange}>
-          <SelectTrigger className="w-24 h-7 text-xs bg-[#1e1e2e] border-[#2e2e3e] text-[#f1f5f9]">
+          <SelectTrigger className="w-24 h-7 text-xs bg-muted border-border text-foreground">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent className="bg-[#1e1e2e] border-[#2e2e3e]">
+          <SelectContent className="bg-muted border-border">
             {[['1mo','1 hó'],['3mo','3 hó'],['6mo','6 hó'],['1y','1 év'],['2y','2 év'],['5y','5 év']].map(([v, l]) => (
-              <SelectItem key={v} value={v} className="text-[#f1f5f9] text-xs">{l}</SelectItem>
+              <SelectItem key={v} value={v} className="text-foreground text-xs">{l}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -184,14 +184,14 @@ export function TbszDetailDialog({ account, positions, trades, open, onOpenChang
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full max-w-[98vw] sm:max-w-[90vw] lg:max-w-5xl xl:max-w-6xl bg-[#111118] border-[#1e1e2e] text-[#f1f5f9] h-[95vh] sm:h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+      <DialogContent className="w-full max-w-[98vw] sm:max-w-[90vw] lg:max-w-5xl xl:max-w-6xl bg-card border-border text-foreground h-[95vh] sm:h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
         {/* ── Fixed header ── */}
-        <div className="flex-shrink-0 px-4 pt-4 pb-3 sm:px-6 sm:pt-5 border-b border-[#1e1e2e] space-y-3">
+        <div className="flex-shrink-0 px-4 pt-4 pb-3 sm:px-6 sm:pt-5 border-b border-border space-y-3">
           <DialogHeader className="space-y-0">
             <div className="flex items-start justify-between gap-3 flex-wrap pr-6">
               <div>
-                <DialogTitle className="text-lg sm:text-xl font-bold text-[#f1f5f9]">{account.name}</DialogTitle>
-                <p className="text-[#64748b] text-sm mt-0.5">Részletes TBSZ statisztika</p>
+                <DialogTitle className="text-lg sm:text-xl font-bold text-foreground">{account.name}</DialogTitle>
+                <p className="text-muted-foreground text-sm mt-0.5">Részletes TBSZ statisztika</p>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 {isFree ? (
@@ -203,7 +203,7 @@ export function TbszDetailDialog({ account, positions, trades, open, onOpenChang
                 )}
                 <Button
                   variant="outline" size="sm" onClick={refetch} disabled={quotesLoading}
-                  className="border-[#2e2e3e] text-[#64748b] hover:text-[#f1f5f9] hover:bg-[#1e1e2e] h-7 text-xs gap-1.5"
+                  className="border-border text-muted-foreground hover:text-foreground hover:bg-muted h-7 text-xs gap-1.5"
                 >
                   {quotesLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                   Frissítés
@@ -214,26 +214,26 @@ export function TbszDetailDialog({ account, positions, trades, open, onOpenChang
 
           {account.tbszYear && (
             <div className="space-y-1">
-              <div className="flex justify-between text-xs text-[#64748b]">
+              <div className="flex justify-between text-xs text-muted-foreground">
                 <span>Nyitva: {account.tbszYear}</span>
                 <span>{progress.toFixed(0)}% — {isFree ? 'Adómentességi időszak lejárt' : `${yearsLeft} év hátra`}</span>
               </div>
-              <Progress value={progress} className="h-1.5 bg-[#1e1e2e]" />
+              <Progress value={progress} className="h-1.5 bg-muted" />
             </div>
           )}
 
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
-            <div className="bg-[#1e1e2e] rounded-lg p-2.5 sm:p-3">
-              <p className="text-[10px] sm:text-xs text-[#64748b]">Portfólió értéke</p>
-              <p className="text-sm sm:text-base font-bold text-[#f1f5f9] mt-0.5 truncate">{formatCurrency(totalValue)}</p>
-              {lastFetched && <p className="text-[9px] text-[#64748b] mt-0.5 hidden sm:block">Frissítve: {format(new Date(lastFetched), 'HH:mm', { locale: hu })}</p>}
+            <div className="bg-muted rounded-lg p-2.5 sm:p-3">
+              <p className="text-[10px] sm:text-xs text-muted-foreground">Portfólió értéke</p>
+              <p className="text-sm sm:text-base font-bold text-foreground mt-0.5 truncate">{formatCurrency(totalValue)}</p>
+              {lastFetched && <p className="text-[9px] text-muted-foreground mt-0.5 hidden sm:block">Frissítve: {format(new Date(lastFetched), 'HH:mm', { locale: hu })}</p>}
             </div>
-            <div className="bg-[#1e1e2e] rounded-lg p-2.5 sm:p-3">
-              <p className="text-[10px] sm:text-xs text-[#64748b]">Befektetett tőke</p>
-              <p className="text-sm sm:text-base font-bold text-[#f1f5f9] mt-0.5 truncate">{formatCurrency(totalCost)}</p>
+            <div className="bg-muted rounded-lg p-2.5 sm:p-3">
+              <p className="text-[10px] sm:text-xs text-muted-foreground">Befektetett tőke</p>
+              <p className="text-sm sm:text-base font-bold text-foreground mt-0.5 truncate">{formatCurrency(totalCost)}</p>
             </div>
-            <div className="bg-[#1e1e2e] rounded-lg p-2.5 sm:p-3">
-              <p className="text-[10px] sm:text-xs text-[#64748b]">P&L</p>
+            <div className="bg-muted rounded-lg p-2.5 sm:p-3">
+              <p className="text-[10px] sm:text-xs text-muted-foreground">P&L</p>
               <p className={`text-sm sm:text-base font-bold mt-0.5 truncate ${totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                 {totalPnl >= 0 ? '+' : ''}{formatCurrency(totalPnl)}
               </p>
@@ -247,12 +247,12 @@ export function TbszDetailDialog({ account, positions, trades, open, onOpenChang
         {/* ── Scrollable body ── */}
         <div className="flex-1 overflow-y-auto">
           <Tabs defaultValue="positions" className="flex flex-col h-full">
-            <div className="flex-shrink-0 px-4 sm:px-6 pt-3 pb-0 border-b border-[#1e1e2e]">
+            <div className="flex-shrink-0 px-4 sm:px-6 pt-3 pb-0 border-b border-border">
               <TabsList className="bg-transparent border-0 p-0 h-auto gap-1 flex-wrap">
                 {[['positions','Pozíciók'],['stats','Statisztikák'],['history','Historikus ár'],['trades','Ügyletek']].map(([v, l]) => (
                   <TabsTrigger
                     key={v} value={v}
-                    className="data-[state=active]:bg-slate-600 data-[state=active]:text-white text-xs rounded-md px-3 py-1.5 bg-[#1e1e2e] text-[#64748b] border-0 mb-2"
+                    className="data-[state=active]:bg-primary data-[state=active]:text-white text-xs rounded-md px-3 py-1.5 bg-muted text-muted-foreground border-0 mb-2"
                   >
                     {l}
                   </TabsTrigger>
@@ -262,40 +262,40 @@ export function TbszDetailDialog({ account, positions, trades, open, onOpenChang
 
             {/* Positions */}
             <TabsContent value="positions" className="flex-1 m-0 px-4 sm:px-6 py-4">
-              <div className="overflow-x-auto rounded-lg border border-[#1e1e2e]">
+              <div className="overflow-x-auto rounded-lg border border-border">
                 <Table>
                   <TableHeader>
-                    <TableRow className="border-[#1e1e2e] hover:bg-transparent">
-                      <TableHead className="text-[#64748b] text-xs">Ticker</TableHead>
-                      <TableHead className="text-[#64748b] text-xs hidden sm:table-cell">Szektor</TableHead>
-                      <TableHead className="text-[#64748b] text-xs text-right">Db</TableHead>
-                      <TableHead className="text-[#64748b] text-xs text-right hidden md:table-cell">Átl. ár</TableHead>
-                      <TableHead className="text-[#64748b] text-xs text-right">Aktuális ár</TableHead>
-                      <TableHead className="text-[#64748b] text-xs text-right hidden sm:table-cell">Piaci érték</TableHead>
-                      <TableHead className="text-[#64748b] text-xs text-right hidden lg:table-cell">Súly</TableHead>
-                      <TableHead className="text-[#64748b] text-xs text-right">P&L</TableHead>
+                    <TableRow className="border-border hover:bg-transparent">
+                      <TableHead className="text-muted-foreground text-xs">Ticker</TableHead>
+                      <TableHead className="text-muted-foreground text-xs hidden sm:table-cell">Szektor</TableHead>
+                      <TableHead className="text-muted-foreground text-xs text-right">Db</TableHead>
+                      <TableHead className="text-muted-foreground text-xs text-right hidden md:table-cell">Átl. ár</TableHead>
+                      <TableHead className="text-muted-foreground text-xs text-right">Aktuális ár</TableHead>
+                      <TableHead className="text-muted-foreground text-xs text-right hidden sm:table-cell">Piaci érték</TableHead>
+                      <TableHead className="text-muted-foreground text-xs text-right hidden lg:table-cell">Súly</TableHead>
+                      <TableHead className="text-muted-foreground text-xs text-right">P&L</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {enriched.map((pos) => (
-                      <TableRow key={pos.id} className="border-[#1e1e2e] hover:bg-[#1e1e2e]/50">
+                      <TableRow key={pos.id} className="border-border hover:bg-muted/50">
                         <TableCell>
-                          <p className="text-sm font-semibold text-[#f1f5f9]">{pos.ticker}</p>
-                          <p className="text-xs text-[#64748b] max-w-28 truncate">{pos.meta.name}</p>
-                          <Badge className="mt-0.5 text-[9px] px-1 py-0 h-4 bg-[#2e2e3e] text-[#64748b] border-0 hidden sm:inline-flex">
+                          <p className="text-sm font-semibold text-foreground">{pos.ticker}</p>
+                          <p className="text-xs text-muted-foreground max-w-28 truncate">{pos.meta.name}</p>
+                          <Badge className="mt-0.5 text-[9px] px-1 py-0 h-4 bg-muted/50 text-muted-foreground border-0 hidden sm:inline-flex">
                             {pos.meta.assetClass}
                           </Badge>
                         </TableCell>
                         <TableCell className="hidden sm:table-cell">
-                          <span className="text-xs text-[#64748b]">{pos.meta.sector}</span>
+                          <span className="text-xs text-muted-foreground">{pos.meta.sector}</span>
                         </TableCell>
-                        <TableCell className="text-right text-sm text-[#f1f5f9]">{pos.quantity}</TableCell>
-                        <TableCell className="text-right text-sm text-[#64748b] hidden md:table-cell">
+                        <TableCell className="text-right text-sm text-foreground">{pos.quantity}</TableCell>
+                        <TableCell className="text-right text-sm text-muted-foreground hidden md:table-cell">
                           {formatCurrency(pos.averageBuyPrice)}
                         </TableCell>
                         <TableCell className="text-right text-sm">
                           <div className="flex flex-col items-end">
-                            <span className="text-[#f1f5f9] font-medium">{formatCurrency(pos.livePrice)}</span>
+                            <span className="text-foreground font-medium">{formatCurrency(pos.livePrice)}</span>
                             {pos.q?.changePercent != null && (
                               <span className={`text-[10px] ${pos.q.changePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                 {pos.q.changePercent >= 0 ? '+' : ''}{pos.q.changePercent.toFixed(2)}%
@@ -303,15 +303,15 @@ export function TbszDetailDialog({ account, positions, trades, open, onOpenChang
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="text-right text-sm font-medium text-[#f1f5f9] hidden sm:table-cell">
+                        <TableCell className="text-right text-sm font-medium text-foreground hidden sm:table-cell">
                           {formatCurrency(pos.marketValue)}
                         </TableCell>
                         <TableCell className="text-right hidden lg:table-cell">
                           <div className="flex flex-col items-end gap-1">
-                            <span className="text-xs text-[#f1f5f9]">
+                            <span className="text-xs text-foreground">
                               {totalValue > 0 ? ((pos.marketValue / totalValue) * 100).toFixed(1) : 0}%
                             </span>
-                            <Progress value={totalValue > 0 ? (pos.marketValue / totalValue) * 100 : 0} className="w-16 h-1 bg-[#2e2e3e]" />
+                            <Progress value={totalValue > 0 ? (pos.marketValue / totalValue) * 100 : 0} className="w-16 h-1 bg-muted/50" />
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
@@ -334,18 +334,18 @@ export function TbszDetailDialog({ account, positions, trades, open, onOpenChang
                 <StatPieCard title="Szektor bontás" data={sectorData} />
                 <StatPieCard title="Regionális bontás" data={regionData} />
               </div>
-              <div className="bg-[#1e1e2e] rounded-xl p-4">
-                <p className="text-sm font-medium text-[#f1f5f9] mb-3">Eszköz típus bontás</p>
+              <div className="bg-muted rounded-xl p-4">
+                <p className="text-sm font-medium text-foreground mb-3">Eszköz típus bontás</p>
                 <div className="space-y-2">
                   {assetClassData.map((d, i) => (
                     <div key={d.name} className="flex items-center gap-2 sm:gap-3">
                       <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                      <span className="text-sm text-[#64748b] flex-1 min-w-0 truncate">{d.name}</span>
+                      <span className="text-sm text-muted-foreground flex-1 min-w-0 truncate">{d.name}</span>
                       <div className="w-20 sm:w-32 hidden xs:block">
-                        <Progress value={d.pct} className="h-1.5 bg-[#2e2e3e]" />
+                        <Progress value={d.pct} className="h-1.5 bg-muted/50" />
                       </div>
-                      <span className="text-sm text-[#f1f5f9] w-10 text-right flex-shrink-0">{d.pct.toFixed(1)}%</span>
-                      <span className="text-sm text-[#64748b] w-24 sm:w-28 text-right flex-shrink-0 hidden sm:block">{formatCurrency(d.value)}</span>
+                      <span className="text-sm text-foreground w-10 text-right flex-shrink-0">{d.pct.toFixed(1)}%</span>
+                      <span className="text-sm text-muted-foreground w-24 sm:w-28 text-right flex-shrink-0 hidden sm:block">{formatCurrency(d.value)}</span>
                     </div>
                   ))}
                 </div>
@@ -356,15 +356,15 @@ export function TbszDetailDialog({ account, positions, trades, open, onOpenChang
             <TabsContent value="history" className="flex-1 m-0 px-4 sm:px-6 py-4 space-y-3">
               {tickers.length > 1 && (
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-[#64748b]">Ticker:</span>
+                  <span className="text-xs text-muted-foreground">Ticker:</span>
                   {tickers.map((t) => (
                     <button
                       key={t}
                       onClick={() => setSelectedTicker(t)}
                       className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${
                         (selectedTicker ?? tickers[0]) === t
-                          ? 'bg-slate-400/10 border-slate-400/30 text-slate-400'
-                          : 'bg-[#1e1e2e] border-[#2e2e3e] text-[#64748b] hover:text-[#f1f5f9]'
+                          ? 'bg-muted border-slate-400/30 text-primary'
+                          : 'bg-muted border-border text-muted-foreground hover:text-foreground'
                       }`}
                     >
                       {t}
@@ -379,17 +379,17 @@ export function TbszDetailDialog({ account, positions, trades, open, onOpenChang
 
             {/* Trade history */}
             <TabsContent value="trades" className="flex-1 m-0 px-4 sm:px-6 py-4">
-              <div className="overflow-x-auto rounded-lg border border-[#1e1e2e]">
+              <div className="overflow-x-auto rounded-lg border border-border">
                 <Table>
                   <TableHeader>
-                    <TableRow className="border-[#1e1e2e] hover:bg-transparent">
-                      <TableHead className="text-[#64748b] text-xs">Dátum</TableHead>
-                      <TableHead className="text-[#64748b] text-xs">Típus</TableHead>
-                      <TableHead className="text-[#64748b] text-xs">Ticker</TableHead>
-                      <TableHead className="text-[#64748b] text-xs text-right">Mennyiség</TableHead>
-                      <TableHead className="text-[#64748b] text-xs text-right hidden sm:table-cell">Ár</TableHead>
-                      <TableHead className="text-[#64748b] text-xs text-right">Összeg</TableHead>
-                      <TableHead className="text-[#64748b] text-xs text-right hidden sm:table-cell">Jutalék</TableHead>
+                    <TableRow className="border-border hover:bg-transparent">
+                      <TableHead className="text-muted-foreground text-xs">Dátum</TableHead>
+                      <TableHead className="text-muted-foreground text-xs">Típus</TableHead>
+                      <TableHead className="text-muted-foreground text-xs">Ticker</TableHead>
+                      <TableHead className="text-muted-foreground text-xs text-right">Mennyiség</TableHead>
+                      <TableHead className="text-muted-foreground text-xs text-right hidden sm:table-cell">Ár</TableHead>
+                      <TableHead className="text-muted-foreground text-xs text-right">Összeg</TableHead>
+                      <TableHead className="text-muted-foreground text-xs text-right hidden sm:table-cell">Jutalék</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -398,8 +398,8 @@ export function TbszDetailDialog({ account, positions, trades, open, onOpenChang
                         .filter((t) => t.positionId === pos.id)
                         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                         .map((trade) => (
-                          <TableRow key={trade.id} className="border-[#1e1e2e] hover:bg-[#1e1e2e]/50">
-                            <TableCell className="text-xs text-[#64748b]">
+                          <TableRow key={trade.id} className="border-border hover:bg-muted/50">
+                            <TableCell className="text-xs text-muted-foreground">
                               {format(new Date(trade.date), 'yyyy. MM. dd.', { locale: hu })}
                             </TableCell>
                             <TableCell>
@@ -411,13 +411,13 @@ export function TbszDetailDialog({ account, positions, trades, open, onOpenChang
                                 {trade.type === 'BUY' ? 'Vétel' : 'Eladás'}
                               </Badge>
                             </TableCell>
-                            <TableCell className="text-sm font-semibold text-[#f1f5f9]">{pos.ticker}</TableCell>
-                            <TableCell className="text-right text-sm text-[#f1f5f9]">{trade.quantity}</TableCell>
-                            <TableCell className="text-right text-sm text-[#64748b] hidden sm:table-cell">{formatCurrency(trade.price)}</TableCell>
-                            <TableCell className="text-right text-sm font-medium text-[#f1f5f9]">
+                            <TableCell className="text-sm font-semibold text-foreground">{pos.ticker}</TableCell>
+                            <TableCell className="text-right text-sm text-foreground">{trade.quantity}</TableCell>
+                            <TableCell className="text-right text-sm text-muted-foreground hidden sm:table-cell">{formatCurrency(trade.price)}</TableCell>
+                            <TableCell className="text-right text-sm font-medium text-foreground">
                               {formatCurrency(trade.quantity * trade.price)}
                             </TableCell>
-                            <TableCell className="text-right text-sm text-[#64748b] hidden sm:table-cell">
+                            <TableCell className="text-right text-sm text-muted-foreground hidden sm:table-cell">
                               {trade.fee ? formatCurrency(trade.fee) : '—'}
                             </TableCell>
                           </TableRow>
@@ -437,8 +437,8 @@ export function TbszDetailDialog({ account, positions, trades, open, onOpenChang
 // ── Reusable stat pie card ───────────────────────────────────────────────────
 function StatPieCard({ title, data }: { title: string; data: { name: string; value: number; pct: number }[] }) {
   return (
-    <div className="bg-[#1e1e2e] rounded-xl p-4 space-y-3">
-      <p className="text-sm font-medium text-[#f1f5f9]">{title}</p>
+    <div className="bg-muted rounded-xl p-4 space-y-3">
+      <p className="text-sm font-medium text-foreground">{title}</p>
       <ResponsiveContainer width="100%" height={140}>
         <PieChart>
           <Pie data={data} cx="50%" cy="50%" innerRadius={35} outerRadius={60}
@@ -455,8 +455,8 @@ function StatPieCard({ title, data }: { title: string; data: { name: string; val
         {data.map((d, i) => (
           <div key={d.name} className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-            <span className="text-xs text-[#64748b] flex-1 truncate">{d.name}</span>
-            <span className="text-xs text-[#f1f5f9] font-medium">{d.pct.toFixed(1)}%</span>
+            <span className="text-xs text-muted-foreground flex-1 truncate">{d.name}</span>
+            <span className="text-xs text-foreground font-medium">{d.pct.toFixed(1)}%</span>
           </div>
         ))}
       </div>

@@ -13,7 +13,15 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts'
-import { TrendingUp, TrendingDown, Wallet, Flame, ArrowUpRight, ArrowDownRight } from 'lucide-react'
+import {
+  TrendingUp,
+  TrendingDown,
+  Wallet,
+  Flame,
+  ArrowUpRight,
+  ArrowDownRight,
+  ChevronRight,
+} from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
@@ -32,11 +40,11 @@ const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
 }
 
 const ACCOUNT_TYPE_COLORS: Record<AccountType, string> = {
-  [AccountType.BANK]: 'bg-blue-500/20 text-slate-400 border-blue-500/30',
-  [AccountType.CASH]: 'bg-green-500/20 text-green-400 border-green-500/30',
-  [AccountType.TBSZ]: 'bg-slate-400/10 text-slate-400 border-slate-400/20',
-  [AccountType.ALLAMPAPIR]: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-  [AccountType.BROKER]: 'bg-slate-400/10 text-slate-400 border-slate-400/20',
+  [AccountType.BANK]: 'bg-violet-100 text-violet-700 border-violet-200',
+  [AccountType.CASH]: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  [AccountType.TBSZ]: 'bg-amber-100 text-amber-700 border-amber-200',
+  [AccountType.ALLAMPAPIR]: 'bg-blue-100 text-blue-700 border-blue-200',
+  [AccountType.BROKER]: 'bg-purple-100 text-purple-700 border-purple-200',
 }
 
 function StatCard({
@@ -45,29 +53,47 @@ function StatCard({
   icon: Icon,
   trend,
   trendLabel,
-  valueColor,
+  accent,
 }: {
   title: string
   value: string
   icon: React.ElementType
   trend?: number
   trendLabel?: string
-  valueColor?: string
+  accent?: 'green' | 'red' | 'purple' | 'default'
 }) {
   const isPositive = trend !== undefined && trend >= 0
+  const valueColors = {
+    green: 'text-emerald-600',
+    red: 'text-red-500',
+    purple: 'text-violet-700',
+    default: 'text-foreground',
+  }
+  const iconBg = {
+    green: 'bg-emerald-100',
+    red: 'bg-red-100',
+    purple: 'bg-violet-100',
+    default: 'bg-secondary',
+  }
+  const iconColor = {
+    green: 'text-emerald-600',
+    red: 'text-red-500',
+    purple: 'text-violet-600',
+    default: 'text-violet-600',
+  }
+  const a = accent ?? 'default'
+
   return (
-    <Card className="bg-[#111118] border-[#1e1e2e]">
+    <Card className="bg-card border-border shadow-sm hover:shadow-md transition-shadow">
       <CardContent className="p-5">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-sm text-[#64748b] font-medium">{title}</p>
-            <p className={`text-2xl font-bold mt-1 ${valueColor || 'text-[#f1f5f9]'}`}>
-              {value}
-            </p>
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">{title}</p>
+            <p className={`text-2xl font-bold mt-1.5 ${valueColors[a]}`}>{value}</p>
             {trend !== undefined && (
               <div
-                className={`flex items-center gap-1 mt-1.5 text-xs ${
-                  isPositive ? 'text-green-400' : 'text-red-400'
+                className={`flex items-center gap-1 mt-1.5 text-xs font-medium ${
+                  isPositive ? 'text-emerald-600' : 'text-red-500'
                 }`}
               >
                 {isPositive ? (
@@ -79,8 +105,8 @@ function StatCard({
               </div>
             )}
           </div>
-          <div className="w-10 h-10 rounded-lg bg-slate-400/10 flex items-center justify-center">
-            <Icon className="w-5 h-5 text-slate-400" />
+          <div className={`w-10 h-10 rounded-xl ${iconBg[a]} flex items-center justify-center`}>
+            <Icon className={`w-5 h-5 ${iconColor[a]}`} />
           </div>
         </div>
       </CardContent>
@@ -99,10 +125,10 @@ const CustomTooltip = ({
 }) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-[#1e1e2e] border border-[#2e2e3e] rounded-lg p-3 shadow-xl">
-        <p className="text-[#64748b] text-xs mb-2">{label}</p>
+      <div className="bg-card border border-border rounded-xl p-3 shadow-lg">
+        <p className="text-muted-foreground text-xs mb-2 font-medium">{label}</p>
         {payload.map((p, i) => (
-          <p key={i} className="text-sm font-medium" style={{ color: p.color }}>
+          <p key={i} className="text-sm font-semibold" style={{ color: p.color }}>
             {p.name}: {formatCurrency(p.value)}
           </p>
         ))}
@@ -119,10 +145,8 @@ export default function DashboardPage() {
   const thisMonthStart = startOfMonth(now)
   const thisMonthEnd = endOfMonth(now)
 
-  // Total net worth
   const totalNetWorth = accounts.reduce((sum, a) => sum + a.balance, 0)
 
-  // This month transactions
   const thisMonthTxs = transactions.filter(
     (t) =>
       t.status === TransactionStatus.CONFIRMED &&
@@ -137,11 +161,9 @@ export default function DashboardPage() {
     thisMonthTxs.filter((t) => t.amount < 0).reduce((sum, t) => sum + t.amount, 0)
   )
 
-  // FIRE progress
   const fireGoal = fireGoalAmount
   const fireProgress = Math.min((totalNetWorth / fireGoal) * 100, 100)
 
-  // Last 6 months cashflow data
   const cashflowData = useMemo(() => {
     return Array.from({ length: 6 }, (_, i) => {
       const month = subMonths(now, 5 - i)
@@ -164,12 +186,10 @@ export default function DashboardPage() {
     })
   }, [transactions])
 
-  // Recent transactions (last 5)
   const recentTxs = [...transactions]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 5)
 
-  // Budget overview (top 5 expense categories with budget)
   const budgetItems = useMemo(() => {
     const expenseCategories = categories.filter(
       (c) => c.type === CategoryType.EXPENSE && c.monthlyBudget
@@ -192,113 +212,163 @@ export default function DashboardPage() {
   const getCategoryName = (id: string | null) =>
     categories.find((c) => c.id === id)?.name ?? 'Egyéb'
 
-  const getAccountName = (id: string) =>
-    accounts.find((a) => a.id === id)?.name ?? id
+  const getCategoryIcon = (id: string | null) =>
+    categories.find((c) => c.id === id)?.icon ?? '💳'
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-[#f1f5f9]">Áttekintő</h1>
-        <p className="text-[#64748b] text-sm mt-0.5">
-          {format(now, 'yyyy. MMMM', { locale: hu })}
-        </p>
+    <div className="space-y-5">
+      {/* Hero balance card */}
+      <div
+        className="rounded-2xl p-6 text-white relative overflow-hidden"
+        style={{
+          background: 'linear-gradient(135deg, #2D1B69 0%, #4C1D95 45%, #6D28D9 100%)',
+        }}
+      >
+        {/* Decorative circles */}
+        <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-card/5" />
+        <div className="absolute -bottom-16 -right-4 w-56 h-56 rounded-full bg-card/5" />
+
+        <div className="relative">
+          <p className="text-sm text-white/70 font-medium">Teljes vagyon</p>
+          <div className="flex items-end justify-between mt-1">
+            <div>
+              <p className="text-4xl font-bold tracking-tight">
+                {formatCurrency(totalNetWorth)}
+              </p>
+              <div className="flex items-center gap-1.5 mt-2">
+                <ArrowUpRight className="w-4 h-4 text-emerald-300" />
+                <span className="text-sm text-emerald-300 font-medium">+2.4%</span>
+                <span className="text-sm text-white/50">előző hónaphoz képest</span>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-white/50 mb-1">FIRE haladás</p>
+              <p className="text-2xl font-bold text-white/90">{fireProgress.toFixed(1)}%</p>
+              <div className="w-24 h-1.5 bg-card/20 rounded-full mt-1.5 ml-auto">
+                <div
+                  className="h-full bg-gradient-to-r from-violet-300 to-white rounded-full"
+                  style={{ width: `${fireProgress}%` }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Mini stat row */}
+          <div className="grid grid-cols-2 gap-3 mt-5">
+            <div className="bg-card/10 rounded-xl p-3">
+              <p className="text-xs text-white/60">Havi bevétel</p>
+              <p className="text-base font-bold text-emerald-300 mt-0.5">
+                +{formatCurrency(thisMonthIncome)}
+              </p>
+            </div>
+            <div className="bg-card/10 rounded-xl p-3">
+              <p className="text-xs text-white/60">Havi kiadás</p>
+              <p className="text-base font-bold text-red-300 mt-0.5">
+                -{formatCurrency(thisMonthExpense)}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      {/* Stat cards row */}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
         <StatCard
           title="Teljes Vagyon"
           value={formatCurrency(totalNetWorth)}
           icon={Wallet}
           trend={2.4}
-          trendLabel="előző hónaphoz képest"
+          trendLabel="+2.4%"
+          accent="purple"
         />
         <StatCard
           title="Havi Kiadás"
           value={formatCurrency(thisMonthExpense)}
           icon={TrendingDown}
-          valueColor="text-red-400"
+          accent="red"
         />
         <StatCard
           title="Havi Bevétel"
           value={formatCurrency(thisMonthIncome)}
           icon={TrendingUp}
-          valueColor="text-green-400"
+          accent="green"
         />
         <StatCard
           title="FIRE Haladás"
           value={`${fireProgress.toFixed(1)}%`}
           icon={Flame}
-          trendLabel={`${formatCurrency(totalNetWorth)} / ${formatCurrency(fireGoal)}`}
           trend={0.1}
-          valueColor="text-slate-400"
+          trendLabel="+0.1%"
+          accent="purple"
         />
       </div>
 
       {/* Middle row */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         {/* Cashflow chart */}
-        <Card className="xl:col-span-2 bg-[#111118] border-[#1e1e2e]">
+        <Card className="xl:col-span-2 bg-card border-border shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold text-[#f1f5f9]">
+            <CardTitle className="text-base font-semibold text-foreground">
               Havi Pénzforgalom
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={240}>
+            <ResponsiveContainer width="100%" height={220}>
               <BarChart data={cashflowData} barGap={4}>
-                <CartesianGrid vertical={false} stroke="#1e1e2e" />
+                <CartesianGrid vertical={false} stroke="#F3F0FF" />
                 <XAxis
                   dataKey="month"
-                  tick={{ fill: '#64748b', fontSize: 12 }}
+                  tick={{ fill: '#9CA3AF', fontSize: 12 }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <YAxis
-                  tick={{ fill: '#64748b', fontSize: 11 }}
+                  tick={{ fill: '#9CA3AF', fontSize: 11 }}
                   axisLine={false}
                   tickLine={false}
                   tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
-                  width={48}
+                  width={40}
                 />
                 <Tooltip content={<CustomTooltip />} />
-                <Legend
-                  wrapperStyle={{ fontSize: 12, color: '#64748b', paddingTop: 8 }}
-                />
-                <Bar dataKey="Bevétel" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Kiadás" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                <Legend wrapperStyle={{ fontSize: 12, color: '#6B7280', paddingTop: 8 }} />
+                <Bar dataKey="Bevétel" fill="#10B981" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="Kiadás" fill="#7C3AED" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
         {/* Account balances */}
-        <Card className="bg-[#111118] border-[#1e1e2e]">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold text-[#f1f5f9]">
-              Számlák
-            </CardTitle>
+        <Card className="bg-card border-border shadow-sm">
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-base font-semibold text-foreground">Számlák</CardTitle>
+            <button className="text-xs text-violet-600 font-medium hover:text-violet-800">
+              Összes
+            </button>
           </CardHeader>
           <CardContent className="space-y-3">
             {accounts.map((acc) => (
-              <div key={acc.id} className="flex items-center justify-between gap-2">
+              <div
+                key={acc.id}
+                className="flex items-center justify-between gap-2 p-2 rounded-xl hover:bg-background transition-colors"
+              >
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-[#f1f5f9] truncate">{acc.name}</p>
+                  <p className="text-sm font-semibold text-foreground truncate">{acc.name}</p>
                   <Badge
                     variant="outline"
-                    className={`text-[10px] px-1.5 py-0 border ${ACCOUNT_TYPE_COLORS[acc.type]}`}
+                    className={`text-[10px] px-1.5 py-0 border mt-0.5 ${ACCOUNT_TYPE_COLORS[acc.type]}`}
                   >
                     {ACCOUNT_TYPE_LABELS[acc.type]}
                   </Badge>
                 </div>
-                <span className="text-sm font-semibold text-[#f1f5f9] whitespace-nowrap">
+                <span className="text-sm font-bold text-foreground whitespace-nowrap">
                   {formatCurrency(acc.balance)}
                 </span>
               </div>
             ))}
-            <div className="border-t border-[#1e1e2e] pt-3 flex justify-between">
-              <span className="text-sm text-[#64748b]">Összesen</span>
-              <span className="text-sm font-bold text-slate-400">
+            <div className="border-t border-border pt-3 flex justify-between">
+              <span className="text-sm text-muted-foreground font-medium">Összesen</span>
+              <span className="text-sm font-bold text-violet-700">
                 {formatCurrency(totalNetWorth)}
               </span>
             </div>
@@ -309,32 +379,38 @@ export default function DashboardPage() {
       {/* Bottom row */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         {/* Recent transactions */}
-        <Card className="bg-[#111118] border-[#1e1e2e]">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold text-[#f1f5f9]">
-              Legutóbbi Tranzakciók
+        <Card className="bg-card border-border shadow-sm">
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-base font-semibold text-foreground">
+              Legutóbbi tranzakciók
             </CardTitle>
+            <button className="text-xs text-violet-600 font-medium hover:text-violet-800 flex items-center gap-0.5">
+              Összes <ChevronRight className="w-3 h-3" />
+            </button>
           </CardHeader>
-          <CardContent className="space-y-0 divide-y divide-[#1e1e2e]">
+          <CardContent className="space-y-0 divide-y divide-[#F3F0FF]">
             {recentTxs.map((tx) => (
-              <div key={tx.id} className="flex items-center justify-between py-3 gap-2">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-[#f1f5f9] truncate">
+              <div key={tx.id} className="flex items-center gap-3 py-3">
+                <div className="w-9 h-9 rounded-xl bg-background flex items-center justify-center flex-shrink-0 text-lg">
+                  {getCategoryIcon(tx.categoryId)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-foreground truncate">
                     {tx.description}
                   </p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-xs text-[#64748b]">
-                      {format(new Date(tx.date), 'MMM d.', { locale: hu })}
-                    </span>
-                    <span className="text-xs text-[#64748b]">·</span>
-                    <span className="text-xs text-[#64748b] truncate">
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-xs text-muted-foreground">
                       {getCategoryName(tx.categoryId)}
+                    </span>
+                    <span className="text-xs text-border">·</span>
+                    <span className="text-xs text-muted-foreground">
+                      {format(new Date(tx.date), 'MMM d.', { locale: hu })}
                     </span>
                   </div>
                 </div>
                 <span
-                  className={`text-sm font-semibold whitespace-nowrap ${
-                    tx.amount >= 0 ? 'text-green-400' : 'text-red-400'
+                  className={`text-sm font-bold whitespace-nowrap ${
+                    tx.amount >= 0 ? 'text-emerald-600' : 'text-foreground'
                   }`}
                 >
                   {tx.amount >= 0 ? '+' : ''}
@@ -346,9 +422,9 @@ export default function DashboardPage() {
         </Card>
 
         {/* Budget overview */}
-        <Card className="bg-[#111118] border-[#1e1e2e]">
+        <Card className="bg-card border-border shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold text-[#f1f5f9]">
+            <CardTitle className="text-base font-semibold text-foreground">
               Költségvetés — {format(now, 'MMMM', { locale: hu })}
             </CardTitle>
           </CardHeader>
@@ -356,31 +432,35 @@ export default function DashboardPage() {
             {budgetItems.map(({ cat, spent, budget, pct }) => (
               <div key={cat.id} className="space-y-1.5">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-[#f1f5f9] font-medium">
+                  <span className="text-foreground font-semibold">
                     {cat.icon} {cat.name}
                   </span>
                   <span
                     className={`font-semibold text-xs ${
                       pct > 100
-                        ? 'text-red-400'
+                        ? 'text-red-500'
                         : pct > 80
-                        ? 'text-amber-400'
-                        : 'text-[#64748b]'
+                        ? 'text-amber-500'
+                        : 'text-muted-foreground'
                     }`}
                   >
                     {formatCurrency(spent)} / {formatCurrency(budget)}
                   </span>
                 </div>
-                <Progress
-                  value={Math.min(pct, 100)}
-                  className="h-1.5 bg-[#1e1e2e]"
-                  style={
-                    {
-                      '--progress-color':
-                        pct > 100 ? '#ef4444' : pct > 80 ? '#f59e0b' : '#22c55e',
-                    } as React.CSSProperties
-                  }
-                />
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${Math.min(pct, 100)}%`,
+                      background:
+                        pct > 100
+                          ? '#EF4444'
+                          : pct > 80
+                          ? '#F59E0B'
+                          : 'linear-gradient(90deg, #7C3AED, #A78BFA)',
+                    }}
+                  />
+                </div>
               </div>
             ))}
           </CardContent>

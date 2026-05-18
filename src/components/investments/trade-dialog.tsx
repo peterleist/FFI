@@ -166,22 +166,22 @@ export function TradeDialog({ open, onOpenChange, preselectedAccountId }: TradeD
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-[#111118] border-[#1e1e2e] text-[#f1f5f9] max-w-md">
+      <DialogContent className="bg-card border-border text-foreground max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-[#f1f5f9]">Új ügylet</DialogTitle>
+          <DialogTitle className="text-foreground">Új ügylet</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
           {/* Account */}
           <div>
-            <Label className="text-[#64748b] text-xs mb-1.5 block">Számla *</Label>
+            <Label className="text-muted-foreground text-xs mb-1.5 block">Számla *</Label>
             <Select value={accountId} onValueChange={setAccountId}>
-              <SelectTrigger className="bg-[#1e1e2e] border-[#2e2e3e] text-[#f1f5f9]">
+              <SelectTrigger className="bg-muted border-border text-foreground">
                 <SelectValue placeholder="Válassz számlát" />
               </SelectTrigger>
-              <SelectContent className="bg-[#111118] border-[#1e1e2e]">
+              <SelectContent className="bg-card border-border">
                 {tbszAccounts.map((acc) => (
-                  <SelectItem key={acc.id} value={acc.id} className="text-[#f1f5f9]">
+                  <SelectItem key={acc.id} value={acc.id} className="text-foreground">
                     {acc.name}
                   </SelectItem>
                 ))}
@@ -191,8 +191,8 @@ export function TradeDialog({ open, onOpenChange, preselectedAccountId }: TradeD
 
           {/* Buy/Sell toggle */}
           <div>
-            <Label className="text-[#64748b] text-xs mb-2 block">Ügylet típusa</Label>
-            <div className="flex gap-1 bg-[#1e1e2e] p-1 rounded-lg">
+            <Label className="text-muted-foreground text-xs mb-2 block">Ügylet típusa</Label>
+            <div className="flex gap-1 bg-muted p-1 rounded-lg">
               <button
                 type="button"
                 onClick={() => setTradeType(TradeType.BUY)}
@@ -200,7 +200,7 @@ export function TradeDialog({ open, onOpenChange, preselectedAccountId }: TradeD
                   'flex-1 py-1.5 px-2 rounded-md text-sm font-medium transition-all',
                   tradeType === TradeType.BUY
                     ? 'bg-green-500 text-white'
-                    : 'text-[#64748b] hover:text-[#f1f5f9]'
+                    : 'text-muted-foreground hover:text-foreground'
                 )}
               >
                 Vétel
@@ -212,7 +212,7 @@ export function TradeDialog({ open, onOpenChange, preselectedAccountId }: TradeD
                   'flex-1 py-1.5 px-2 rounded-md text-sm font-medium transition-all',
                   tradeType === TradeType.SELL
                     ? 'bg-red-500 text-white'
-                    : 'text-[#64748b] hover:text-[#f1f5f9]'
+                    : 'text-muted-foreground hover:text-foreground'
                 )}
               >
                 Eladás
@@ -222,7 +222,7 @@ export function TradeDialog({ open, onOpenChange, preselectedAccountId }: TradeD
 
           {/* Ticker */}
           <div className="relative">
-            <Label className="text-[#64748b] text-xs mb-1.5 block">Ticker *</Label>
+            <Label className="text-muted-foreground text-xs mb-1.5 block">Ticker *</Label>
             <Input
               placeholder="pl. VWCE"
               value={ticker}
@@ -231,15 +231,15 @@ export function TradeDialog({ open, onOpenChange, preselectedAccountId }: TradeD
                 setShowSuggestions(true)
               }}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-              className="bg-[#1e1e2e] border-[#2e2e3e] text-[#f1f5f9]"
+              className="bg-muted border-border text-foreground"
             />
             {showSuggestions && filteredSuggestions.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-[#111118] border border-[#1e1e2e] rounded-lg shadow-xl z-50">
+              <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-xl z-50">
                 {filteredSuggestions.map((s) => (
                   <button
                     key={s}
                     type="button"
-                    className="w-full text-left px-3 py-2 text-sm text-[#f1f5f9] hover:bg-[#1e1e2e]"
+                    className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-muted"
                     onClick={() => { setTicker(s); setShowSuggestions(false) }}
                   >
                     {s}
@@ -251,37 +251,37 @@ export function TradeDialog({ open, onOpenChange, preselectedAccountId }: TradeD
 
           {/* Name */}
           <div>
-            <Label className="text-[#64748b] text-xs mb-1.5 block">Megnevezés</Label>
+            <Label className="text-muted-foreground text-xs mb-1.5 block">Megnevezés</Label>
             <Input
               placeholder="pl. Vanguard FTSE All-World ETF"
               value={tickerName}
               onChange={(e) => setTickerName(e.target.value)}
-              className="bg-[#1e1e2e] border-[#2e2e3e] text-[#f1f5f9]"
+              className="bg-muted border-border text-foreground"
             />
           </div>
 
           {/* Quantity & Price */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label className="text-[#64748b] text-xs mb-1.5 block">Darabszám *</Label>
+              <Label className="text-muted-foreground text-xs mb-1.5 block">Darabszám *</Label>
               <Input
                 type="number"
                 placeholder="0"
                 value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
-                className="bg-[#1e1e2e] border-[#2e2e3e] text-[#f1f5f9]"
+                className="bg-muted border-border text-foreground"
                 min="0"
                 step="0.0001"
               />
             </div>
             <div>
-              <Label className="text-[#64748b] text-xs mb-1.5 block">Egységár (Ft) *</Label>
+              <Label className="text-muted-foreground text-xs mb-1.5 block">Egységár (Ft) *</Label>
               <Input
                 type="number"
                 placeholder="0"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                className="bg-[#1e1e2e] border-[#2e2e3e] text-[#f1f5f9]"
+                className="bg-muted border-border text-foreground"
                 min="0"
               />
             </div>
@@ -289,9 +289,9 @@ export function TradeDialog({ open, onOpenChange, preselectedAccountId }: TradeD
 
           {/* Total preview */}
           {totalValue > 0 && (
-            <div className="bg-[#1e1e2e] rounded-lg px-3 py-2 flex justify-between">
-              <span className="text-xs text-[#64748b]">Összérték</span>
-              <span className="text-sm font-semibold text-[#f1f5f9]">
+            <div className="bg-muted rounded-lg px-3 py-2 flex justify-between">
+              <span className="text-xs text-muted-foreground">Összérték</span>
+              <span className="text-sm font-semibold text-foreground">
                 {formatCurrency(totalValue)}
               </span>
             </div>
@@ -299,28 +299,28 @@ export function TradeDialog({ open, onOpenChange, preselectedAccountId }: TradeD
 
           {/* Fee */}
           <div>
-            <Label className="text-[#64748b] text-xs mb-1.5 block">Jutalék (Ft)</Label>
+            <Label className="text-muted-foreground text-xs mb-1.5 block">Jutalék (Ft)</Label>
             <Input
               type="number"
               placeholder="0"
               value={fee}
               onChange={(e) => setFee(e.target.value)}
-              className="bg-[#1e1e2e] border-[#2e2e3e] text-[#f1f5f9]"
+              className="bg-muted border-border text-foreground"
               min="0"
             />
           </div>
 
           {/* Date */}
           <div>
-            <Label className="text-[#64748b] text-xs mb-1.5 block">Dátum *</Label>
+            <Label className="text-muted-foreground text-xs mb-1.5 block">Dátum *</Label>
             <SimplePopover>
               <SimplePopoverTrigger
-                className="flex h-9 w-full items-center gap-2 rounded-lg border border-[#2e2e3e] bg-[#1e1e2e] px-3 py-2 text-sm text-[#f1f5f9] hover:bg-[#2e2e3e] transition-colors"
+                className="flex h-9 w-full items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground hover:bg-muted/50 transition-colors"
               >
-                <CalendarIcon className="h-4 w-4 text-[#64748b]" />
+                <CalendarIcon className="h-4 w-4 text-muted-foreground" />
                 {format(date, 'yyyy. MM. dd.')}
               </SimplePopoverTrigger>
-              <SimplePopoverContent className="rounded-lg border border-[#1e1e2e] bg-[#111118] shadow-xl">
+              <SimplePopoverContent className="rounded-lg border border-border bg-card shadow-xl">
                 <Calendar
                   mode="single"
                   selected={date}
@@ -333,12 +333,12 @@ export function TradeDialog({ open, onOpenChange, preselectedAccountId }: TradeD
 
           {/* Note */}
           <div>
-            <Label className="text-[#64748b] text-xs mb-1.5 block">Megjegyzés</Label>
+            <Label className="text-muted-foreground text-xs mb-1.5 block">Megjegyzés</Label>
             <Input
               placeholder="Opcionális megjegyzés"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              className="bg-[#1e1e2e] border-[#2e2e3e] text-[#f1f5f9]"
+              className="bg-muted border-border text-foreground"
             />
           </div>
 
@@ -347,7 +347,7 @@ export function TradeDialog({ open, onOpenChange, preselectedAccountId }: TradeD
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              className="flex-1 border-[#2e2e3e] text-[#64748b] hover:text-[#f1f5f9] hover:bg-[#1e1e2e]"
+              className="flex-1 border-border text-muted-foreground hover:text-foreground hover:bg-muted"
             >
               Mégse
             </Button>

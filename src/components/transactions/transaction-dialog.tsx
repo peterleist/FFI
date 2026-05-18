@@ -142,9 +142,9 @@ export function TransactionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-[#111118] border-[#1e1e2e] text-[#f1f5f9] max-w-md">
+      <DialogContent className="bg-card border-border text-foreground max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-[#f1f5f9]">
+          <DialogTitle className="text-foreground">
             {transaction ? 'Tranzakció szerkesztése' : 'Új tranzakció'}
           </DialogTitle>
         </DialogHeader>
@@ -152,8 +152,8 @@ export function TransactionDialog({
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
           {/* Type toggle */}
           <div>
-            <Label className="text-[#64748b] text-xs mb-2 block">Típus</Label>
-            <div className="flex gap-1 bg-[#1e1e2e] p-1 rounded-lg">
+            <Label className="text-muted-foreground text-xs mb-2 block">Típus</Label>
+            <div className="flex gap-1 bg-muted p-1 rounded-lg">
               {TYPE_OPTIONS.map((opt) => (
                 <button
                   key={opt.value}
@@ -162,8 +162,8 @@ export function TransactionDialog({
                   className={cn(
                     'flex-1 py-1.5 px-2 rounded-md text-sm font-medium transition-all',
                     type === opt.value
-                      ? 'bg-slate-600 text-white'
-                      : 'text-[#64748b] hover:text-[#f1f5f9]'
+                      ? 'bg-primary text-white'
+                      : 'text-muted-foreground hover:text-foreground'
                   )}
                 >
                   {opt.label}
@@ -174,14 +174,14 @@ export function TransactionDialog({
 
           {/* Account */}
           <div>
-            <Label className="text-[#64748b] text-xs mb-1.5 block">Számla *</Label>
+            <Label className="text-muted-foreground text-xs mb-1.5 block">Számla *</Label>
             <Select value={accountId} onValueChange={setAccountId}>
-              <SelectTrigger className="bg-[#1e1e2e] border-[#2e2e3e] text-[#f1f5f9]">
+              <SelectTrigger className="bg-muted border-border text-foreground">
                 <SelectValue placeholder="Válassz számlát" />
               </SelectTrigger>
-              <SelectContent className="bg-[#111118] border-[#1e1e2e]">
+              <SelectContent className="bg-card border-border">
                 {accounts.map((acc) => (
-                  <SelectItem key={acc.id} value={acc.id} className="text-[#f1f5f9]">
+                  <SelectItem key={acc.id} value={acc.id} className="text-foreground">
                     {acc.name}
                   </SelectItem>
                 ))}
@@ -191,14 +191,14 @@ export function TransactionDialog({
 
           {/* Category */}
           <div>
-            <Label className="text-[#64748b] text-xs mb-1.5 block">Kategória</Label>
+            <Label className="text-muted-foreground text-xs mb-1.5 block">Kategória</Label>
             <Select value={categoryId} onValueChange={setCategoryId}>
-              <SelectTrigger className="bg-[#1e1e2e] border-[#2e2e3e] text-[#f1f5f9]">
+              <SelectTrigger className="bg-muted border-border text-foreground">
                 <SelectValue placeholder="Kategória kiválasztása" />
               </SelectTrigger>
-              <SelectContent className="bg-[#111118] border-[#1e1e2e]">
+              <SelectContent className="bg-card border-border">
                 {filteredCategories.map((cat) => (
-                  <SelectItem key={cat.id} value={cat.id} className="text-[#f1f5f9]">
+                  <SelectItem key={cat.id} value={cat.id} className="text-foreground">
                     {cat.icon} {cat.name}
                   </SelectItem>
                 ))}
@@ -208,13 +208,13 @@ export function TransactionDialog({
 
           {/* Amount */}
           <div>
-            <Label className="text-[#64748b] text-xs mb-1.5 block">Összeg (Ft) *</Label>
+            <Label className="text-muted-foreground text-xs mb-1.5 block">Összeg (Ft) *</Label>
             <Input
               type="number"
               placeholder="0"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className="bg-[#1e1e2e] border-[#2e2e3e] text-[#f1f5f9]"
+              className="bg-muted border-border text-foreground"
               min="0"
               step="1"
             />
@@ -222,17 +222,17 @@ export function TransactionDialog({
 
           {/* Date */}
           <div>
-            <Label className="text-[#64748b] text-xs mb-1.5 block">Dátum *</Label>
+            <Label className="text-muted-foreground text-xs mb-1.5 block">Dátum *</Label>
             <SimplePopover>
               <SimplePopoverTrigger
                 className={cn(
-                  'flex h-9 w-full items-center justify-start gap-2 rounded-lg border border-[#2e2e3e] bg-[#1e1e2e] px-3 py-2 text-sm text-[#f1f5f9] hover:bg-[#2e2e3e] transition-colors'
+                  'flex h-9 w-full items-center justify-start gap-2 rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground hover:bg-muted/50 transition-colors'
                 )}
               >
-                <CalendarIcon className="h-4 w-4 text-[#64748b]" />
+                <CalendarIcon className="h-4 w-4 text-muted-foreground" />
                 {date ? format(date, 'yyyy. MM. dd.') : 'Válassz dátumot'}
               </SimplePopoverTrigger>
-              <SimplePopoverContent className="rounded-lg border border-[#1e1e2e] bg-[#111118] shadow-xl">
+              <SimplePopoverContent className="rounded-lg border border-border bg-card shadow-xl">
                 <Calendar
                   mode="single"
                   selected={date}
@@ -245,23 +245,23 @@ export function TransactionDialog({
 
           {/* Description */}
           <div>
-            <Label className="text-[#64748b] text-xs mb-1.5 block">Leírás *</Label>
+            <Label className="text-muted-foreground text-xs mb-1.5 block">Leírás *</Label>
             <Input
               placeholder="pl. Aldi bevásárlás"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="bg-[#1e1e2e] border-[#2e2e3e] text-[#f1f5f9]"
+              className="bg-muted border-border text-foreground"
             />
           </div>
 
           {/* Note */}
           <div>
-            <Label className="text-[#64748b] text-xs mb-1.5 block">Megjegyzés (opcionális)</Label>
+            <Label className="text-muted-foreground text-xs mb-1.5 block">Megjegyzés (opcionális)</Label>
             <Input
               placeholder="Opcionális megjegyzés"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              className="bg-[#1e1e2e] border-[#2e2e3e] text-[#f1f5f9]"
+              className="bg-muted border-border text-foreground"
             />
           </div>
 
@@ -274,24 +274,24 @@ export function TransactionDialog({
               onChange={(e) => setIsRecurring(e.target.checked)}
               className="w-4 h-4 accent-slate-400"
             />
-            <Label htmlFor="recurring" className="text-sm text-[#f1f5f9] cursor-pointer">
+            <Label htmlFor="recurring" className="text-sm text-foreground cursor-pointer">
               Ismétlődő tétel
             </Label>
           </div>
 
           {isRecurring && (
             <div>
-              <Label className="text-[#64748b] text-xs mb-1.5 block">Ismétlődés</Label>
+              <Label className="text-muted-foreground text-xs mb-1.5 block">Ismétlődés</Label>
               <Select
                 value={frequency}
                 onValueChange={(v) => setFrequency(v as Frequency)}
               >
-                <SelectTrigger className="bg-[#1e1e2e] border-[#2e2e3e] text-[#f1f5f9]">
+                <SelectTrigger className="bg-muted border-border text-foreground">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-[#111118] border-[#1e1e2e]">
+                <SelectContent className="bg-card border-border">
                   {Object.values(Frequency).map((f) => (
-                    <SelectItem key={f} value={f} className="text-[#f1f5f9]">
+                    <SelectItem key={f} value={f} className="text-foreground">
                       {FREQUENCY_LABELS[f]}
                     </SelectItem>
                   ))}
@@ -305,13 +305,13 @@ export function TransactionDialog({
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
-              className="flex-1 border-[#2e2e3e] text-[#64748b] hover:text-[#f1f5f9] hover:bg-[#1e1e2e]"
+              className="flex-1 border-border text-muted-foreground hover:text-foreground hover:bg-muted"
             >
               Mégse
             </Button>
             <Button
               type="submit"
-              className="flex-1 bg-slate-600 hover:bg-slate-500 text-white"
+              className="flex-1 bg-primary hover:bg-primary/90 text-white"
             >
               {transaction ? 'Mentés' : 'Hozzáadás'}
             </Button>

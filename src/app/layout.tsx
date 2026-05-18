@@ -22,7 +22,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="hu" className={`${inter.variable} h-full dark`}>
-      <body className="min-h-full flex flex-col antialiased bg-[#0a0a0f] text-[#f1f5f9]">
+      <body className="min-h-full flex flex-col antialiased bg-background text-foreground">
         {children}
         <Toaster richColors position="top-right" />
       </body>
