@@ -1,14 +1,13 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer,
-} from 'recharts'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { createChart, ColorType, LineStyle, LineSeries } from 'lightweight-charts'
+import type { IChartApi, ISeriesApi, Time } from 'lightweight-charts'
 import { Plus, X, TrendingUp, TrendingDown, RefreshCw, BarChart2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { useAppStore } from '@/lib/store'
-import { toYahooSymbol, getAssetMeta } from '@/lib/market-data'
+import { toYahooSymbol, getAssetMeta, useQuotes, useFxRates, toHuf } from '@/lib/market-data'
+import { formatCurrency } from '@/lib/utils'
 import type { HistoryPoint } from '@/app/api/market-data/history/route'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -51,18 +50,12 @@ const YAHOO_INTERVAL: Record<Range, string> = {
   '1Y': '1d', '3Y': '1wk', 'MAX': '1wk',
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// Chart theme constants matching globals.css dark theme
+const CHART_BG    = '#18191D'
+const CHART_GRID  = '#27282E'
+const CHART_TEXT  = '#71717A'
 
-function formatDate(dateStr: string, range: Range): string {
-  const d = new Date(dateStr)
-  if (range === '1M' || range === '3M') {
-    return d.toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' })
-  }
-  if (range === '6M' || range === '1Y') {
-    return d.toLocaleDateString('hu-HU', { year: 'numeric', month: 'short' })
-  }
-  return d.getFullYear().toString()
-}
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function toReturnPct(points: HistoryPoint[]): Record<string, number> {
   if (!points.length) return {}
@@ -74,15 +67,119 @@ function toReturnPct(points: HistoryPoint[]): Record<string, number> {
   return map
 }
 
-// ── Date tooltip ──────────────────────────────────────────────────────────────
+// ── TradingChart ──────────────────────────────────────────────────────────────
 
-function DateTooltip({ active, label }: { active?: boolean; label?: string }) {
-  if (!active || !label) return null
-  return (
-    <div className="bg-foreground text-card text-xs px-2.5 py-1.5 rounded-lg shadow-xl">
-      {label}
-    </div>
-  )
+interface ChartRow {
+  date: string // raw YYYY-MM-DD, used as lightweight-charts Time
+  [ticker: string]: string | number
+}
+
+function TradingChart({
+  data,
+  tickers,
+  visible,
+}: {
+  data: ChartRow[]
+  tickers: string[]
+  visible: string[]
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const chartRef = useRef<IChartApi | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const seriesRef = useRef<Map<string, ISeriesApi<any>>>(new Map())
+
+  useEffect(() => {
+    if (!containerRef.current || !data.length) return
+
+    // Clean up previous chart
+    try { chartRef.current?.remove() } catch { /* ignore */ }
+    chartRef.current = null
+    seriesRef.current.clear()
+
+    let chart: IChartApi
+    try {
+      chart = createChart(containerRef.current, {
+      layout: {
+        background: { type: ColorType.Solid, color: CHART_BG },
+        textColor: CHART_TEXT,
+        fontFamily: 'inherit',
+        fontSize: 11,
+      },
+      grid: {
+        vertLines: { visible: false },
+        horzLines: { color: CHART_GRID },
+      },
+      rightPriceScale: {
+        borderVisible: false,
+        scaleMargins: { top: 0.08, bottom: 0.05 },
+      },
+      timeScale: {
+        borderVisible: false,
+        fixLeftEdge: true,
+        fixRightEdge: true,
+        tickMarkFormatter: (t: Time) => String(t).slice(0, 7), // YYYY-MM
+      },
+      crosshair: {
+        horzLine: { visible: false, labelVisible: false },
+        vertLine: { color: '#444', style: LineStyle.Dashed, width: 1, labelVisible: false },
+      },
+      handleScroll: false,
+      handleScale: false,
+      width: containerRef.current.clientWidth,
+      height: 208,
+    })
+
+    chart.applyOptions({
+      localization: {
+        priceFormatter: (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}%`,
+      },
+    })
+
+    const visibleTickers = tickers.filter(t => visible.includes(t))
+
+    for (const ticker of visibleTickers) {
+      const color = COLORS[tickers.indexOf(ticker) % COLORS.length]
+      const series = chart.addSeries(LineSeries, {
+        color,
+        lineWidth: 2,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerBorderColor: CHART_BG,
+        crosshairMarkerBorderWidth: 2,
+        crosshairMarkerRadius: 4,
+      })
+
+      const seriesData = data
+        .filter(d => typeof d[ticker] === 'number')
+        .map(d => ({ time: d.date as Time, value: d[ticker] as number }))
+
+      series.setData(seriesData)
+      seriesRef.current.set(ticker, series)
+    }
+
+    chart.timeScale().fitContent()
+    chartRef.current = chart
+
+    const ro = new ResizeObserver(() => {
+      if (containerRef.current && chartRef.current) {
+        chartRef.current.applyOptions({ width: containerRef.current.clientWidth })
+      }
+    })
+    ro.observe(containerRef.current)
+
+    return () => {
+      ro.disconnect()
+      try { chart.remove() } catch { /* ignore */ }
+      chartRef.current = null
+      seriesRef.current.clear()
+    }
+    } catch (err) {
+      console.error('lightweight-charts init error:', err)
+    }
+  }, [data, tickers, visible])
+
+  if (!data.length) return null
+  return <div ref={containerRef} className="w-full" style={{ height: 208 }} />
 }
 
 // ── Main widget ───────────────────────────────────────────────────────────────
@@ -96,16 +193,13 @@ export function MarketWidget() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Unique tickers from positions
   const tickers = useMemo(
     () => [...new Set(investmentPositions.map(p => p.ticker))],
     [investmentPositions]
   )
 
-  // Primary ticker = first one
   const primaryTicker = tickers[0] ?? null
 
-  // Fetch history for all tickers
   const fetchAll = async (r: Range) => {
     if (!tickers.length) return
     setLoading(true)
@@ -132,7 +226,6 @@ export function MarketWidget() {
         if (r.status === 'fulfilled') next[tickers[i]] = r.value
       })
       setHistories(next)
-      // init visible with all tickers that have data
       setVisible(prev => {
         const withData = tickers.filter(t => next[t]?.points.length)
         return prev.length ? prev.filter(t => withData.includes(t)) : withData
@@ -146,16 +239,19 @@ export function MarketWidget() {
 
   useEffect(() => { fetchAll(range) }, [tickers.join(','), range])
 
-  // Build normalised chart data (% return, all stocks rebased to 0 at period start)
-  const chartData = useMemo(() => {
+  // Live quotes for current price display
+  const { quotes } = useQuotes(tickers)
+  const { rates: fxRates } = useFxRates()
+
+  // Build chart data — raw YYYY-MM-DD dates for lightweight-charts
+  const chartData = useMemo((): ChartRow[] => {
     const allDates = new Set<string>()
     const returnMaps: Record<string, Record<string, number>> = {}
 
     tickers.forEach(ticker => {
       const h = histories[ticker]
       if (!h?.points.length) return
-      const ret = toReturnPct(h.points)
-      returnMaps[ticker] = ret
+      returnMaps[ticker] = toReturnPct(h.points)
       h.points.forEach(p => allDates.add(p.date))
     })
 
@@ -163,21 +259,20 @@ export function MarketWidget() {
     const last: Record<string, number> = {}
 
     return sortedDates.map(date => {
-      const row: Record<string, string | number> = { date: formatDate(date, range) }
+      const row: ChartRow = { date }
       tickers.forEach(ticker => {
         const val = returnMaps[ticker]?.[date]
         if (val !== undefined) {
           last[ticker] = val
           row[ticker] = val
         } else if (last[ticker] !== undefined) {
-          row[ticker] = last[ticker] // carry forward
+          row[ticker] = last[ticker]
         }
       })
       return row
     })
-  }, [histories, tickers, range])
+  }, [histories, tickers])
 
-  // Final % change = last chart point value for each ticker
   const finalChanges = useMemo<Record<string, number>>(() => {
     const last = chartData[chartData.length - 1]
     if (!last) return {}
@@ -186,12 +281,18 @@ export function MarketWidget() {
     )
   }, [chartData, tickers])
 
-  // Current prices from positions
+  // Live prices — use quote if available, fall back to stored price
+  // Currency always derived from asset meta (authoritative source)
   const currentPrices = useMemo(() => {
     return Object.fromEntries(
-      investmentPositions.map(p => [p.ticker, { price: p.currentPrice, currency: p.currency }])
+      investmentPositions.map(p => {
+        const meta = getAssetMeta(p.ticker)
+        const livePrice = quotes[p.ticker]?.price ?? p.currentPrice
+        const currency = meta.currency || p.currency
+        return [p.ticker, { price: livePrice, currency }]
+      })
     )
-  }, [investmentPositions])
+  }, [investmentPositions, quotes])
 
   const toggle = (ticker: string) =>
     setVisible(prev => prev.includes(ticker) ? prev.filter(t => t !== ticker) : [...prev, ticker])
@@ -215,13 +316,6 @@ export function MarketWidget() {
   const primChange = primaryTicker ? (finalChanges[primaryTicker] ?? 0) : 0
   const primPrice = primaryTicker ? currentPrices[primaryTicker] : null
 
-  // Y domain
-  const visibleVals = chartData.flatMap(d =>
-    tickers.filter(t => visible.includes(t)).map(t => d[t] as number).filter(v => typeof v === 'number')
-  )
-  const minY = visibleVals.length ? Math.floor(Math.min(...visibleVals) - 3) : -10
-  const maxY = visibleVals.length ? Math.ceil(Math.max(...visibleVals) + 3) : 10
-
   return (
     <Card className="bg-card border-border shadow-sm">
       <CardContent className="p-5">
@@ -242,12 +336,21 @@ export function MarketWidget() {
             </div>
             <div className="flex items-center gap-3 flex-wrap">
               {primPrice && (
-                <span className="text-3xl font-bold text-foreground tabular-nums">
-                  {primPrice.price.toLocaleString('hu-HU')} {primPrice.currency}
-                </span>
+                <div className="flex flex-col">
+                  <span className="text-3xl font-bold text-foreground tabular-nums">
+                    {formatCurrency(primPrice.price, primPrice.currency)}
+                  </span>
+                  {primPrice.currency !== 'HUF' && (
+                    <span className="text-sm text-muted-foreground tabular-nums">
+                      {formatCurrency(toHuf(primPrice.price, primPrice.currency, fxRates))}
+                    </span>
+                  )}
+                </div>
               )}
               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
-                primChange >= 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'
+                primChange >= 0
+                  ? 'bg-emerald-500/20 text-emerald-400'
+                  : 'bg-red-500/20 text-red-400'
               }`}>
                 {primChange >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                 {primChange >= 0 ? '+' : ''}{primChange.toFixed(2)}%
@@ -278,58 +381,17 @@ export function MarketWidget() {
         </div>
 
         {/* Chart */}
-        <div className="h-52">
+        <div className="rounded-xl overflow-hidden">
           {loading && !chartData.length ? (
-            <div className="h-full flex items-center justify-center">
+            <div className="h-52 flex items-center justify-center" style={{ background: CHART_BG }}>
               <RefreshCw className="w-6 h-6 text-muted-foreground animate-spin" />
             </div>
           ) : error ? (
-            <div className="h-full flex items-center justify-center text-sm text-destructive">
+            <div className="h-52 flex items-center justify-center text-sm text-destructive" style={{ background: CHART_BG }}>
               Nem sikerült betölteni az adatokat
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 5, right: 8, bottom: 0, left: 0 }}>
-                <CartesianGrid vertical={false} stroke="#EFF6FF" />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fill: '#94A3B8', fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                  interval="preserveStartEnd"
-                />
-                <YAxis
-                  tick={{ fill: '#94A3B8', fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={v => `${v > 0 ? '+' : ''}${v}%`}
-                  width={56}
-                  domain={[minY, maxY]}
-                />
-                <Tooltip
-                  content={<DateTooltip />}
-                  cursor={{ stroke: '#94A3B8', strokeDasharray: '4 4', strokeWidth: 1 }}
-                  isAnimationActive={false}
-                />
-                {tickers.filter(t => visible.includes(t)).map((ticker, i) => (
-                  <Line
-                    key={ticker}
-                    type="monotone"
-                    dataKey={ticker}
-                    stroke={COLORS[tickers.indexOf(ticker) % COLORS.length]}
-                    strokeWidth={2}
-                    dot={false}
-                    connectNulls
-                    activeDot={{
-                      r: 5,
-                      strokeWidth: 2,
-                      stroke: '#ffffff',
-                      fill: COLORS[tickers.indexOf(ticker) % COLORS.length],
-                    }}
-                  />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
+            <TradingChart data={chartData} tickers={tickers} visible={visible} />
           )}
         </div>
 
@@ -354,12 +416,17 @@ export function MarketWidget() {
                   {meta.name !== ticker ? meta.name : ticker}
                 </span>
                 {priceInfo && (
-                  <span className="text-sm text-muted-foreground tabular-nums mr-2 shrink-0">
-                    {priceInfo.price.toLocaleString('hu-HU')} {priceInfo.currency}
+                  <span className="text-sm text-muted-foreground tabular-nums mr-2 shrink-0 text-right">
+                    {formatCurrency(priceInfo.price, priceInfo.currency)}
+                    {priceInfo.currency !== 'HUF' && (
+                      <span className="block text-xs text-muted-foreground/60">
+                        {formatCurrency(toHuf(priceInfo.price, priceInfo.currency, fxRates))}
+                      </span>
+                    )}
                   </span>
                 )}
                 <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-semibold w-[76px] justify-center shrink-0 ${
-                  isPos ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'
+                  isPos ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'
                 }`}>
                   {isPos ? '↑' : '↓'} {Math.abs(chg).toFixed(2)}%
                 </span>

@@ -266,6 +266,42 @@ export function useQuotes(tickers: string[]): QuotesState {
   return { quotes, loading, error, lastFetched, refetch: fetch_ }
 }
 
+// ── FX rates ──────────────────────────────────────────────────────────────────
+
+export interface FxRates {
+  EUR: number
+  USD: number
+}
+
+const DEFAULT_FX: FxRates = { EUR: 400, USD: 365 }
+
+export function useFxRates(): { rates: FxRates; loading: boolean } {
+  const [rates, setRates] = useState<FxRates>(DEFAULT_FX)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/market-data/quotes?tickers=EURHUF%3DX,USDHUF%3DX')
+      .then(r => r.json())
+      .then(data => {
+        const q = data.quotes ?? {}
+        setRates({
+          EUR: q['EURHUF=X']?.price ?? DEFAULT_FX.EUR,
+          USD: q['USDHUF=X']?.price ?? DEFAULT_FX.USD,
+        })
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  return { rates, loading }
+}
+
+export function toHuf(amount: number, currency: string, rates: FxRates): number {
+  if (currency === 'HUF') return amount
+  const rate = currency === 'EUR' ? rates.EUR : currency === 'USD' ? rates.USD : null
+  return rate ? Math.round(amount * rate) : Math.round(amount)
+}
+
 export interface HistoryState {
   points: HistoryPoint[]
   loading: boolean

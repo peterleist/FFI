@@ -41,11 +41,11 @@ const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
 }
 
 const ACCOUNT_TYPE_COLORS: Record<AccountType, string> = {
-  [AccountType.BANK]: 'bg-blue-100 text-blue-700 border-blue-200',
-  [AccountType.CASH]: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-  [AccountType.TBSZ]: 'bg-amber-100 text-amber-700 border-amber-200',
-  [AccountType.ALLAMPAPIR]: 'bg-blue-100 text-blue-700 border-blue-200',
-  [AccountType.BROKER]: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+  [AccountType.BANK]: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  [AccountType.CASH]: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+  [AccountType.TBSZ]: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+  [AccountType.ALLAMPAPIR]: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  [AccountType.BROKER]: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30',
 }
 
 function StatCard({
@@ -65,22 +65,22 @@ function StatCard({
 }) {
   const isPositive = trend !== undefined && trend >= 0
   const valueColors = {
-    green: 'text-emerald-600',
-    red: 'text-red-500',
-    blue: 'text-blue-700',
+    green: 'text-emerald-400',
+    red: 'text-red-400',
+    blue: 'text-blue-400',
     default: 'text-foreground',
   }
   const iconBg = {
-    green: 'bg-emerald-100',
-    red: 'bg-red-100',
-    blue: 'bg-blue-100',
+    green: 'bg-emerald-500/20',
+    red: 'bg-red-500/20',
+    blue: 'bg-blue-500/20',
     default: 'bg-secondary',
   }
   const iconColor = {
-    green: 'text-emerald-600',
-    red: 'text-red-500',
-    blue: 'text-blue-600',
-    default: 'text-blue-600',
+    green: 'text-emerald-400',
+    red: 'text-red-400',
+    blue: 'text-blue-400',
+    default: 'text-primary',
   }
   const a = accent ?? 'default'
 
@@ -94,7 +94,7 @@ function StatCard({
             {trend !== undefined && (
               <div
                 className={`flex items-center gap-1 mt-1.5 text-xs font-medium ${
-                  isPositive ? 'text-emerald-600' : 'text-red-500'
+                  isPositive ? 'text-emerald-400' : 'text-red-400'
                 }`}
               >
                 {isPositive ? (
@@ -319,7 +319,7 @@ export default function DashboardPage() {
           <CardContent>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={cashflowData} barGap={4}>
-                <CartesianGrid vertical={false} stroke="#F3F0FF" />
+                <CartesianGrid vertical={false} stroke="#27282E" />
                 <XAxis
                   dataKey="month"
                   tick={{ fill: '#9CA3AF', fontSize: 12 }}
@@ -336,7 +336,7 @@ export default function DashboardPage() {
                 <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 12, color: '#6B7280', paddingTop: 8 }} />
                 <Bar dataKey="Bevétel" fill="#10B981" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="Kiadás" fill="#7C3AED" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="Kiadás" fill="#6366F1" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -346,7 +346,7 @@ export default function DashboardPage() {
         <Card className="bg-card border-border shadow-sm">
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <CardTitle className="text-base font-semibold text-foreground">Számlák</CardTitle>
-            <button className="text-xs text-blue-600 font-medium hover:text-blue-800">
+            <button className="text-xs text-primary font-medium hover:text-primary/80">
               Összes
             </button>
           </CardHeader>
@@ -372,7 +372,7 @@ export default function DashboardPage() {
             ))}
             <div className="border-t border-border pt-3 flex justify-between">
               <span className="text-sm text-muted-foreground font-medium">Összesen</span>
-              <span className="text-sm font-bold text-blue-700">
+              <span className="text-sm font-bold text-primary">
                 {formatCurrency(totalNetWorth)}
               </span>
             </div>
@@ -388,11 +388,11 @@ export default function DashboardPage() {
             <CardTitle className="text-base font-semibold text-foreground">
               Legutóbbi tranzakciók
             </CardTitle>
-            <button className="text-xs text-blue-600 font-medium hover:text-blue-800 flex items-center gap-0.5">
+            <button className="text-xs text-primary font-medium hover:text-primary/80 flex items-center gap-0.5">
               Összes <ChevronRight className="w-3 h-3" />
             </button>
           </CardHeader>
-          <CardContent className="space-y-0 divide-y divide-[#F3F0FF]">
+          <CardContent className="space-y-0 divide-y divide-border">
             {recentTxs.map((tx) => (
               <div key={tx.id} className="flex items-center gap-3 py-3">
                 <div className="w-9 h-9 rounded-xl bg-background flex items-center justify-center flex-shrink-0 text-lg">
@@ -414,7 +414,7 @@ export default function DashboardPage() {
                 </div>
                 <span
                   className={`text-sm font-bold whitespace-nowrap ${
-                    tx.amount >= 0 ? 'text-emerald-600' : 'text-foreground'
+                    tx.amount >= 0 ? 'text-emerald-400' : 'text-foreground'
                   }`}
                 >
                   {tx.amount >= 0 ? '+' : ''}
@@ -461,7 +461,7 @@ export default function DashboardPage() {
                           ? '#EF4444'
                           : pct > 80
                           ? '#F59E0B'
-                          : 'linear-gradient(90deg, #7C3AED, #A78BFA)',
+                          : 'linear-gradient(90deg, #3B82F6, #60A5FA)',
                     }}
                   />
                 </div>

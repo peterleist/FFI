@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
-  AreaChart, Area, XAxis, YAxis, CartesianGrid,
 } from 'recharts'
+import { createChart, ColorType, AreaSeries } from 'lightweight-charts'
+import type { IChartApi, Time } from 'lightweight-charts'
 import { Plus, TrendingUp, TrendingDown, RefreshCw, ExternalLink, Loader2, Pencil, Trash2, BarChart2, Eye } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -21,7 +22,7 @@ import { formatCurrency } from '@/lib/utils'
 import { TradeDialog } from '@/components/investments/trade-dialog'
 import { TbszDetailDialog } from '@/components/investments/tbsz-detail-dialog'
 import { CustomViewDialog } from '@/components/investments/custom-view-dialog'
-import { useQuotes, getAssetMeta, toYahooSymbol, type QuoteResult } from '@/lib/market-data'
+import { useQuotes, getAssetMeta, toYahooSymbol, useFxRates, toHuf, type QuoteResult } from '@/lib/market-data'
 import type { CustomPortfolioView } from '@/lib/store'
 import { format } from 'date-fns'
 import { hu } from 'date-fns/locale'
@@ -56,17 +57,20 @@ export default function InvestmentsPage() {
   // Live quotes for all investment positions
   const allTickers = [...new Set(investmentPositions.map((p) => p.ticker))]
   const { quotes, loading: quotesLoading, lastFetched, refetch } = useQuotes(allTickers)
+  const { rates: fxRates } = useFxRates()
 
   const enrichedPositions = useMemo(() => {
     return investmentPositions.map((pos) => {
       const q = quotes[pos.ticker]
       const livePrice = q?.price ?? pos.currentPrice
+      const meta = getAssetMeta(pos.ticker)
+      // meta.currency is the authoritative source; fixes positions created before currency selector
+      const currency = meta.currency || pos.currency
       const marketValue = pos.quantity * livePrice
       const cost = pos.quantity * pos.averageBuyPrice
       const pnl = marketValue - cost
       const pnlPercent = cost > 0 ? (pnl / cost) * 100 : 0
-      const meta = getAssetMeta(pos.ticker)
-      return { ...pos, livePrice, marketValue, pnl, pnlPercent, meta, q }
+      return { ...pos, currency, livePrice, marketValue, pnl, pnlPercent, meta, q }
     })
   }, [investmentPositions, quotes])
 
@@ -202,7 +206,7 @@ export default function InvestmentsPage() {
                     </Pie>
                     <Tooltip
                       formatter={(v) => formatCurrency(Number(v))}
-                      contentStyle={{ backgroundColor: '#1e1e2e', border: '1px solid #2e2e3e', borderRadius: 8, color: '#f1f5f9' }}
+                      contentStyle={{ backgroundColor: '#18191D', border: '1px solid #27282E', borderRadius: 8, color: '#E4E4E7' }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -251,24 +255,27 @@ export default function InvestmentsPage() {
                         </TableCell>
                         <TableCell className="text-right text-sm text-foreground">{pos.quantity}</TableCell>
                         <TableCell className="text-right text-sm text-muted-foreground">
-                          {formatCurrency(pos.averageBuyPrice, pos.currency)}
+                          <PriceCell amount={pos.averageBuyPrice} currency={pos.currency} fxRates={fxRates} />
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex flex-col items-end">
-                            <span className="text-sm text-foreground">{formatCurrency(pos.livePrice, pos.currency)}</span>
-                            {pos.q?.changePercent != null && (
-                              <span className={`text-[10px] ${pos.q.changePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                {pos.q.changePercent >= 0 ? '+' : ''}{pos.q.changePercent.toFixed(2)}%
-                              </span>
-                            )}
-                          </div>
+                          <PriceCell amount={pos.livePrice} currency={pos.currency} fxRates={fxRates} className="text-sm text-foreground" />
+                          {pos.q?.changePercent != null && (
+                            <span className={`text-[10px] ${pos.q.changePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {pos.q.changePercent >= 0 ? '+' : ''}{pos.q.changePercent.toFixed(2)}%
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell className="text-right text-sm font-medium text-foreground">
-                          {formatCurrency(pos.marketValue, pos.currency)}
+                          <PriceCell amount={pos.marketValue} currency={pos.currency} fxRates={fxRates} />
                         </TableCell>
                         <TableCell className="text-right">
                           <div className={`text-sm font-semibold ${pos.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                             {pos.pnl >= 0 ? '+' : ''}{formatCurrency(pos.pnl, pos.currency)}
+                            {pos.currency !== 'HUF' && (
+                              <span className="block text-[10px] font-normal text-muted-foreground/70">
+                                {pos.pnl >= 0 ? '+' : ''}{formatCurrency(toHuf(pos.pnl, pos.currency, fxRates))}
+                              </span>
+                            )}
                             <p className="text-[10px] font-normal">({pos.pnlPercent >= 0 ? '+' : ''}{pos.pnlPercent.toFixed(1)}%)</p>
                           </div>
                         </TableCell>
@@ -370,21 +377,24 @@ export default function InvestmentsPage() {
                             </TableCell>
                             <TableCell className="text-right text-sm text-foreground">{pos.quantity}</TableCell>
                             <TableCell className="text-right text-sm text-muted-foreground">
-                              {formatCurrency(pos.averageBuyPrice, pos.currency)}
+                              <PriceCell amount={pos.averageBuyPrice} currency={pos.currency} fxRates={fxRates} />
                             </TableCell>
                             <TableCell className="text-right">
-                              <div className="flex flex-col items-end">
-                                <span className="text-sm text-foreground font-medium">{formatCurrency(pos.livePrice, pos.currency)}</span>
-                                {pos.q?.changePercent != null && (
-                                  <span className={`text-[10px] ${pos.q.changePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                    {pos.q.changePercent >= 0 ? '+' : ''}{pos.q.changePercent.toFixed(2)}% ma
-                                  </span>
-                                )}
-                              </div>
+                              <PriceCell amount={pos.livePrice} currency={pos.currency} fxRates={fxRates} className="text-sm text-foreground font-medium" />
+                              {pos.q?.changePercent != null && (
+                                <span className={`text-[10px] ${pos.q.changePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                  {pos.q.changePercent >= 0 ? '+' : ''}{pos.q.changePercent.toFixed(2)}% ma
+                                </span>
+                              )}
                             </TableCell>
                             <TableCell className="text-right">
                               <span className={`text-sm font-semibold ${pos.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                 {pos.pnl >= 0 ? '+' : ''}{formatCurrency(pos.pnl, pos.currency)}
+                                {pos.currency !== 'HUF' && (
+                                  <span className="block text-[10px] font-normal text-muted-foreground/70">
+                                    {pos.pnl >= 0 ? '+' : ''}{formatCurrency(toHuf(pos.pnl, pos.currency, fxRates))}
+                                  </span>
+                                )}
                                 <span className="text-[10px] font-normal ml-1">({pos.pnlPercent >= 0 ? '+' : ''}{pos.pnlPercent.toFixed(1)}%)</span>
                               </span>
                             </TableCell>
@@ -423,7 +433,14 @@ export default function InvestmentsPage() {
                                   {trade.type === 'BUY' ? 'Vétel' : 'Eladás'}
                                 </Badge>
                                 <span className="text-foreground font-medium">{pos.ticker}</span>
-                                <span className="text-muted-foreground">{trade.quantity} × {formatCurrency(trade.price, pos.currency)}</span>
+                                <span className="text-muted-foreground">
+                                  {trade.quantity} × {formatCurrency(trade.price, pos.currency)}
+                                  {pos.currency !== 'HUF' && (
+                                    <span className="ml-1 text-muted-foreground/60">
+                                      ({formatCurrency(toHuf(trade.price, pos.currency, fxRates))})
+                                    </span>
+                                  )}
+                                </span>
                               </div>
                               <div className="flex items-center gap-3">
                                 <span className="text-muted-foreground">
@@ -606,6 +623,29 @@ interface EnrichedPosition {
   q: QuoteResult | undefined
 }
 
+// ── Price cell with optional HUF equivalent ──────────────────────────────────
+
+function PriceCell({
+  amount, currency, fxRates, className = '',
+}: {
+  amount: number
+  currency: string
+  fxRates: ReturnType<typeof useFxRates>['rates']
+  className?: string
+}) {
+  if (currency === 'HUF') {
+    return <span className={className}>{formatCurrency(amount, 'HUF')}</span>
+  }
+  return (
+    <span className={className}>
+      {formatCurrency(amount, currency)}
+      <span className="block text-[10px] text-muted-foreground/70 tabular-nums">
+        {formatCurrency(toHuf(amount, currency, fxRates))}
+      </span>
+    </span>
+  )
+}
+
 // ── Portfolio Growth Chart ────────────────────────────────────────────────────
 const GROWTH_RANGES = [
   { label: '1N',  range: '1d',  interval: '5m'  },
@@ -618,6 +658,81 @@ const GROWTH_RANGES = [
   { label: '2É',  range: '2y',  interval: '1mo' },
   { label: '5É',  range: '5y',  interval: '1mo' },
 ]
+
+function PortfolioAreaChart({ data }: { data: { date: string; value: number }[] }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const chartRef = useRef<IChartApi | null>(null)
+
+  useEffect(() => {
+    if (!containerRef.current) return
+
+    chartRef.current?.remove()
+    chartRef.current = null
+
+    const chart = createChart(containerRef.current, {
+      layout: {
+        background: { type: ColorType.Solid, color: '#18191D' },
+        textColor: '#71717A',
+        fontFamily: 'inherit',
+        fontSize: 11,
+      },
+      grid: {
+        vertLines: { visible: false },
+        horzLines: { color: '#27282E' },
+      },
+      rightPriceScale: {
+        borderVisible: false,
+        scaleMargins: { top: 0.1, bottom: 0.05 },
+      },
+      timeScale: { borderVisible: false, fixLeftEdge: true, fixRightEdge: true },
+      crosshair: {
+        horzLine: { visible: false, labelVisible: false },
+        vertLine: { color: '#444', labelVisible: false },
+      },
+      handleScroll: false,
+      handleScale: false,
+      width: containerRef.current.clientWidth,
+      height: 240,
+    })
+
+    chart.applyOptions({
+      localization: {
+        priceFormatter: (v: number) => {
+          if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(2)}M Ft`
+          if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K Ft`
+          return `${v.toFixed(0)} Ft`
+        },
+      },
+    })
+
+    const series = chart.addSeries(AreaSeries, {
+      lineColor: '#3B82F6',
+      topColor: 'rgba(59,130,246,0.25)',
+      bottomColor: 'rgba(59,130,246,0)',
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      crosshairMarkerBorderColor: '#18191D',
+      crosshairMarkerBorderWidth: 2,
+      crosshairMarkerRadius: 4,
+    })
+
+    series.setData(data.map(d => ({ time: d.date as Time, value: d.value })))
+    chart.timeScale().fitContent()
+    chartRef.current = chart
+
+    const ro = new ResizeObserver(() => {
+      if (containerRef.current && chartRef.current) {
+        chartRef.current.applyOptions({ width: containerRef.current.clientWidth })
+      }
+    })
+    ro.observe(containerRef.current)
+
+    return () => { ro.disconnect(); chart.remove(); chartRef.current = null }
+  }, [data])
+
+  return <div ref={containerRef} style={{ width: '100%', height: 240 }} />
+}
 
 function PortfolioGrowthChart({ positions }: { positions: { ticker: string; quantity: number }[] }) {
   const [selectedRange, setSelectedRange] = useState(GROWTH_RANGES[6])
@@ -642,41 +757,27 @@ function PortfolioGrowthChart({ positions }: { positions: { ticker: string; quan
           .catch(() => ({ ticker, points: [] as { date: string; close: number }[] }))
       )
     ).then((results) => {
-      // Build fill-forward price maps per ticker
       const priceMaps: Record<string, Record<string, number>> = {}
       for (const { ticker, points } of results) {
-        const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date))
         const map: Record<string, number> = {}
-        let last = 0
-        for (const p of sorted) {
-          last = p.close
-          map[p.date] = last
-        }
+        for (const p of [...points].sort((a, b) => a.date.localeCompare(b.date))) map[p.date] = p.close
         priceMaps[ticker] = map
       }
 
-      // Collect all dates across all tickers
       const allDates = [...new Set(results.flatMap(({ points }) => points.map((p) => p.date)))].sort()
-
-      // For each date compute portfolio value using fill-forward
       const lastPrice: Record<string, number> = {}
       const merged: { date: string; value: number }[] = []
 
       for (const date of allDates) {
-        let total = 0
-        let hasAny = false
-
+        let total = 0; let hasAny = false
         for (const { ticker } of positions) {
           const map = priceMaps[ticker] ?? {}
           if (map[date] != null) lastPrice[ticker] = map[date]
           if (lastPrice[ticker] != null) {
-            total += lastPrice[ticker] * positions
-              .filter((p) => p.ticker === ticker)
-              .reduce((s, p) => s + p.quantity, 0)
+            total += lastPrice[ticker] * positions.filter(p => p.ticker === ticker).reduce((s, p) => s + p.quantity, 0)
             hasAny = true
           }
         }
-
         if (hasAny) merged.push({ date, value: Math.round(total) })
       }
 
@@ -684,17 +785,6 @@ function PortfolioGrowthChart({ positions }: { positions: { ticker: string; quan
     }).finally(() => setLoading(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRange.range, selectedRange.interval, posKey])
-
-  const dateFormatter = (d: string) => {
-    if (!d) return ''
-    if (selectedRange.range === '1d') return d.slice(11, 16)
-    if (['5d', '1mo', '3mo'].includes(selectedRange.range)) {
-      const dt = new Date(d)
-      return `${dt.getMonth() + 1}/${dt.getDate()}`
-    }
-    const dt = new Date(d)
-    return `${dt.getFullYear().toString().slice(2)}/${String(dt.getMonth() + 1).padStart(2, '0')}`
-  }
 
   const startValue = chartData[0]?.value ?? 0
   const endValue = chartData[chartData.length - 1]?.value ?? 0
@@ -740,7 +830,7 @@ function PortfolioGrowthChart({ positions }: { positions: { ticker: string; quan
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-0 pb-2">
         {loading ? (
           <div className="h-[240px] flex items-center justify-center">
             <Loader2 className="w-5 h-5 animate-spin text-primary" />
@@ -750,46 +840,7 @@ function PortfolioGrowthChart({ positions }: { positions: { ticker: string; quan
             Nincs adat a kiválasztott időszakra
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
-              <defs>
-                <linearGradient id="portfolioGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#94a3b8" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="#94a3b8" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid stroke="#1e1e2e" strokeDasharray="3 3" />
-              <XAxis
-                dataKey="date"
-                tickFormatter={dateFormatter}
-                tick={{ fill: '#64748b', fontSize: 10 }}
-                axisLine={false}
-                tickLine={false}
-                interval="preserveStartEnd"
-              />
-              <YAxis
-                tick={{ fill: '#64748b', fontSize: 10 }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(v) => `${(v / 1_000_000).toFixed(1)}M`}
-                width={44}
-              />
-              <Tooltip
-                formatter={(v) => [formatCurrency(Number(v)), 'Érték']}
-                labelFormatter={(l) => String(l).slice(0, 10)}
-                contentStyle={{ backgroundColor: '#1e1e2e', border: '1px solid #2e2e3e', borderRadius: 8, color: '#f1f5f9', fontSize: 12 }}
-              />
-              <Area
-                type="monotone"
-                dataKey="value"
-                stroke="#94a3b8"
-                strokeWidth={2}
-                fill="url(#portfolioGrad)"
-                dot={false}
-                activeDot={{ r: 3, fill: '#94a3b8' }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          <PortfolioAreaChart data={chartData} />
         )}
       </CardContent>
     </Card>
