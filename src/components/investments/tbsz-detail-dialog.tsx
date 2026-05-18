@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef, useEffect } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -9,10 +9,9 @@ import {
 } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
-import {
-  PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Legend,
-} from 'recharts'
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
+import { createChart, ColorType, AreaSeries } from 'lightweight-charts'
+import type { IChartApi, Time } from 'lightweight-charts'
 import {
   Table, TableBody, TableCell, TableHead,
   TableHeader, TableRow,
@@ -20,14 +19,14 @@ import {
 import { RefreshCw, TrendingUp, TrendingDown, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { formatCurrency, formatPercent } from '@/lib/utils'
-import { getAssetMeta, useQuotes, useHistory } from '@/lib/market-data'
+import { formatCurrency } from '@/lib/utils'
+import { getAssetMeta, useQuotes, useHistory, useFxRates, toHuf } from '@/lib/market-data'
 import type { Account, InvestmentPosition, InvestmentTrade } from '@/lib/types'
 import { format } from 'date-fns'
 import { hu } from 'date-fns/locale'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
-const COLORS = ['#94a3b8', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6']
+const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#06B6D4', '#EF4444', '#14B8A6']
 const CURRENT_YEAR = new Date().getFullYear()
 
 function tbszYearsUntilFree(openedYear: number) {
@@ -45,26 +44,114 @@ interface Props {
   onOpenChange: (v: boolean) => void
 }
 
+// ── Lightweight-charts area chart for price history ─────────────────────────
+function HistoryAreaChart({
+  data, positive, currency,
+}: {
+  data: { date: string; value: number }[]
+  positive: boolean
+  currency: string
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const chartRef = useRef<IChartApi | null>(null)
+
+  useEffect(() => {
+    if (!containerRef.current || !data.length) return
+
+    try { chartRef.current?.remove() } catch { /* ignore */ }
+    chartRef.current = null
+
+    try {
+      const line = positive ? '#10B981' : '#EF4444'
+      const chart = createChart(containerRef.current, {
+        layout: {
+          background: { type: ColorType.Solid, color: '#1E1F24' },
+          textColor: '#71717A',
+          fontFamily: 'inherit',
+          fontSize: 11,
+        },
+        grid: {
+          vertLines: { visible: false },
+          horzLines: { color: '#27282E' },
+        },
+        rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.12, bottom: 0.08 } },
+        timeScale: { borderVisible: false, fixLeftEdge: true, fixRightEdge: true },
+        crosshair: {
+          horzLine: { visible: false, labelVisible: false },
+          vertLine: { color: '#444', labelVisible: false },
+        },
+        handleScroll: false,
+        handleScale: false,
+        width: containerRef.current.clientWidth,
+        height: 220,
+      })
+
+      chart.applyOptions({
+        localization: {
+          priceFormatter: (v: number) => formatCurrency(v, currency),
+        },
+      })
+
+      const series = chart.addSeries(AreaSeries, {
+        lineColor: line,
+        topColor: positive ? 'rgba(16,185,129,0.28)' : 'rgba(239,68,68,0.28)',
+        bottomColor: positive ? 'rgba(16,185,129,0)' : 'rgba(239,68,68,0)',
+        lineWidth: 2,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerBorderColor: '#1E1F24',
+        crosshairMarkerBorderWidth: 2,
+        crosshairMarkerRadius: 4,
+      })
+
+      series.setData(data.map((d) => ({ time: d.date as Time, value: d.value })))
+      chart.timeScale().fitContent()
+      chartRef.current = chart
+
+      const ro = new ResizeObserver(() => {
+        if (containerRef.current && chartRef.current) {
+          chartRef.current.applyOptions({ width: containerRef.current.clientWidth })
+        }
+      })
+      ro.observe(containerRef.current)
+
+      return () => {
+        ro.disconnect()
+        try { chart.remove() } catch { /* ignore */ }
+        chartRef.current = null
+      }
+    } catch (err) {
+      console.error('lightweight-charts init error:', err)
+    }
+  }, [data, positive, currency])
+
+  return <div ref={containerRef} style={{ width: '100%', height: 220 }} />
+}
+
 // ── Historical chart for a single position ──────────────────────────────────
 function PositionHistoryChart({ ticker }: { ticker: string }) {
   const [range, setRange] = useState('1y')
   const { points, loading, currency } = useHistory(ticker, range)
+  const { rates: fxRates } = useFxRates()
 
-  const chartData = points.map((p) => ({ date: p.date, ár: p.close }))
+  const chartData = useMemo(
+    () => points.map((p) => ({ date: p.date, value: p.close })),
+    [points]
+  )
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-40 text-muted-foreground">
+      <div className="flex items-center justify-center h-52 text-muted-foreground">
         <Loader2 className="w-5 h-5 animate-spin mr-2" /> Adatok betöltése…
       </div>
     )
   }
   if (chartData.length === 0) {
-    return <p className="text-center text-muted-foreground text-sm py-8">Nincs historikus adat</p>
+    return <p className="text-center text-muted-foreground text-sm py-12">Nincs historikus adat</p>
   }
 
-  const firstClose = chartData[0]?.ár ?? 0
-  const lastClose = chartData[chartData.length - 1]?.ár ?? 0
+  const firstClose = chartData[0]?.value ?? 0
+  const lastClose = chartData[chartData.length - 1]?.value ?? 0
   const change = lastClose - firstClose
   const changePct = firstClose > 0 ? (change / firstClose) * 100 : 0
   const positive = change >= 0
@@ -72,11 +159,16 @@ function PositionHistoryChart({ ticker }: { ticker: string }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-3">
-          <span className="text-lg font-bold text-foreground">
-            {lastClose.toLocaleString('hu-HU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currency}
+        <div className="flex items-baseline gap-3 flex-wrap">
+          <span className="text-xl font-bold text-foreground tabular-nums">
+            {formatCurrency(lastClose, currency)}
           </span>
-          <span className={`text-sm font-semibold flex items-center gap-1 ${positive ? 'text-green-400' : 'text-red-400'}`}>
+          {currency !== 'HUF' && (
+            <span className="text-sm text-muted-foreground tabular-nums">
+              {formatCurrency(toHuf(lastClose, currency, fxRates))}
+            </span>
+          )}
+          <span className={`text-sm font-semibold flex items-center gap-1 ${positive ? 'text-emerald-400' : 'text-red-400'}`}>
             {positive ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
             {positive ? '+' : ''}{changePct.toFixed(2)}%
           </span>
@@ -85,34 +177,16 @@ function PositionHistoryChart({ ticker }: { ticker: string }) {
           <SelectTrigger className="w-24 h-7 text-xs bg-muted border-border text-foreground">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent className="bg-muted border-border">
+          <SelectContent className="bg-card border-border">
             {[['1mo','1 hó'],['3mo','3 hó'],['6mo','6 hó'],['1y','1 év'],['2y','2 év'],['5y','5 év']].map(([v, l]) => (
               <SelectItem key={v} value={v} className="text-foreground text-xs">{l}</SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
-      <ResponsiveContainer width="100%" height={180}>
-        <AreaChart data={chartData}>
-          <defs>
-            <linearGradient id={`grad-${ticker}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor={positive ? '#22c55e' : '#ef4444'} stopOpacity={0.3} />
-              <stop offset="95%" stopColor={positive ? '#22c55e' : '#ef4444'} stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1e1e2e" />
-          <XAxis dataKey="date" tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false}
-            tickFormatter={(v: string) => v.slice(5)} interval="preserveStartEnd" />
-          <YAxis tick={{ fill: '#64748b', fontSize: 10 }} tickLine={false} axisLine={false}
-            domain={['auto', 'auto']} width={50} />
-          <Tooltip
-            contentStyle={{ backgroundColor: '#1e1e2e', border: '1px solid #2e2e3e', borderRadius: 8, color: '#f1f5f9', fontSize: 12 }}
-            formatter={(v) => [`${Number(v).toLocaleString('hu-HU', { minimumFractionDigits: 2 })} ${currency}`, 'Ár']}
-          />
-          <Area type="monotone" dataKey="ár" stroke={positive ? '#22c55e' : '#ef4444'}
-            fill={`url(#grad-${ticker})`} strokeWidth={2} dot={false} />
-        </AreaChart>
-      </ResponsiveContainer>
+      <div className="rounded-xl overflow-hidden border border-border">
+        <HistoryAreaChart data={chartData} positive={positive} currency={currency} />
+      </div>
     </div>
   )
 }
@@ -124,36 +198,44 @@ export function TbszDetailDialog({ account, positions, trades, open, onOpenChang
 
   const tickers = positions.map((p) => p.ticker)
   const { quotes, loading: quotesLoading, lastFetched, refetch } = useQuotes(open ? tickers : [])
+  const { rates: fxRates } = useFxRates()
 
   const enriched = useMemo(() => {
     return positions.map((pos) => {
       const q = quotes[pos.ticker]
       const livePrice = q?.price ?? pos.currentPrice
+      const meta = getAssetMeta(pos.ticker)
+      const currency = meta.currency || pos.currency
+      // Native-currency figures
       const marketValue = pos.quantity * livePrice
       const cost = pos.quantity * pos.averageBuyPrice
       const pnl = marketValue - cost
       const pnlPct = cost > 0 ? (pnl / cost) * 100 : 0
-      const meta = getAssetMeta(pos.ticker)
-      return { ...pos, livePrice, marketValue, pnl, pnlPct, meta, q }
+      // HUF-converted — the only values safe to sum across currencies
+      const marketValueHuf = toHuf(marketValue, currency, fxRates)
+      const costHuf = toHuf(cost, currency, fxRates)
+      const pnlHuf = marketValueHuf - costHuf
+      return { ...pos, currency, livePrice, marketValue, cost, pnl, pnlPct, marketValueHuf, costHuf, pnlHuf, meta, q }
     })
-  }, [positions, quotes])
+  }, [positions, quotes, fxRates])
 
-  const totalValue = enriched.reduce((s, p) => s + p.marketValue, 0)
-  const totalCost  = enriched.reduce((s, p) => s + p.quantity * p.averageBuyPrice, 0)
+  // All totals aggregate the HUF-converted values
+  const totalValue = enriched.reduce((s, p) => s + p.marketValueHuf, 0)
+  const totalCost  = enriched.reduce((s, p) => s + p.costHuf, 0)
   const totalPnl   = totalValue - totalCost
   const totalPnlPct = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0
 
-  // Allocation pie (by position value)
+  // Allocation pie (by position HUF value)
   const allocationData = enriched.map((p) => ({
     name: p.ticker,
-    value: Math.round(p.marketValue),
-    pct: totalValue > 0 ? (p.marketValue / totalValue) * 100 : 0,
+    value: Math.round(p.marketValueHuf),
+    pct: totalValue > 0 ? (p.marketValueHuf / totalValue) * 100 : 0,
   }))
 
   // Sector breakdown
   const sectorMap: Record<string, number> = {}
   enriched.forEach((p) => {
-    sectorMap[p.meta.sector] = (sectorMap[p.meta.sector] ?? 0) + p.marketValue
+    sectorMap[p.meta.sector] = (sectorMap[p.meta.sector] ?? 0) + p.marketValueHuf
   })
   const sectorData = Object.entries(sectorMap)
     .map(([name, value]) => ({ name, value: Math.round(value), pct: totalValue > 0 ? (value / totalValue) * 100 : 0 }))
@@ -162,7 +244,7 @@ export function TbszDetailDialog({ account, positions, trades, open, onOpenChang
   // Region breakdown
   const regionMap: Record<string, number> = {}
   enriched.forEach((p) => {
-    regionMap[p.meta.region] = (regionMap[p.meta.region] ?? 0) + p.marketValue
+    regionMap[p.meta.region] = (regionMap[p.meta.region] ?? 0) + p.marketValueHuf
   })
   const regionData = Object.entries(regionMap)
     .map(([name, value]) => ({ name, value: Math.round(value), pct: totalValue > 0 ? (value / totalValue) * 100 : 0 }))
@@ -171,7 +253,7 @@ export function TbszDetailDialog({ account, positions, trades, open, onOpenChang
   // Asset class breakdown
   const assetClassMap: Record<string, number> = {}
   enriched.forEach((p) => {
-    assetClassMap[p.meta.assetClass] = (assetClassMap[p.meta.assetClass] ?? 0) + p.marketValue
+    assetClassMap[p.meta.assetClass] = (assetClassMap[p.meta.assetClass] ?? 0) + p.marketValueHuf
   })
   const assetClassData = Object.entries(assetClassMap)
     .map(([name, value]) => ({ name, value: Math.round(value), pct: totalValue > 0 ? (value / totalValue) * 100 : 0 }))
@@ -291,32 +373,32 @@ export function TbszDetailDialog({ account, positions, trades, open, onOpenChang
                         </TableCell>
                         <TableCell className="text-right text-sm text-foreground">{pos.quantity}</TableCell>
                         <TableCell className="text-right text-sm text-muted-foreground hidden md:table-cell">
-                          {formatCurrency(pos.averageBuyPrice)}
+                          {formatCurrency(pos.averageBuyPrice, pos.currency)}
                         </TableCell>
                         <TableCell className="text-right text-sm">
                           <div className="flex flex-col items-end">
-                            <span className="text-foreground font-medium">{formatCurrency(pos.livePrice)}</span>
+                            <span className="text-foreground font-medium">{formatCurrency(pos.livePrice, pos.currency)}</span>
                             {pos.q?.changePercent != null && (
-                              <span className={`text-[10px] ${pos.q.changePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              <span className={`text-[10px] ${pos.q.changePercent >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                                 {pos.q.changePercent >= 0 ? '+' : ''}{pos.q.changePercent.toFixed(2)}%
                               </span>
                             )}
                           </div>
                         </TableCell>
                         <TableCell className="text-right text-sm font-medium text-foreground hidden sm:table-cell">
-                          {formatCurrency(pos.marketValue)}
+                          {formatCurrency(pos.marketValueHuf)}
                         </TableCell>
                         <TableCell className="text-right hidden lg:table-cell">
                           <div className="flex flex-col items-end gap-1">
                             <span className="text-xs text-foreground">
-                              {totalValue > 0 ? ((pos.marketValue / totalValue) * 100).toFixed(1) : 0}%
+                              {totalValue > 0 ? ((pos.marketValueHuf / totalValue) * 100).toFixed(1) : 0}%
                             </span>
-                            <Progress value={totalValue > 0 ? (pos.marketValue / totalValue) * 100 : 0} className="w-16 h-1 bg-muted/50" />
+                            <Progress value={totalValue > 0 ? (pos.marketValueHuf / totalValue) * 100 : 0} className="w-16 h-1 bg-muted/50" />
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className={`text-sm font-semibold ${pos.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {pos.pnl >= 0 ? '+' : ''}{formatCurrency(pos.pnl)}
+                          <div className={`text-sm font-semibold ${pos.pnlHuf >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {pos.pnlHuf >= 0 ? '+' : ''}{formatCurrency(pos.pnlHuf)}
                             <p className="text-[10px] font-normal">({pos.pnlPct >= 0 ? '+' : ''}{pos.pnlPct.toFixed(2)}%)</p>
                           </div>
                         </TableCell>
@@ -393,8 +475,9 @@ export function TbszDetailDialog({ account, positions, trades, open, onOpenChang
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {positions.flatMap((pos) =>
-                      trades
+                    {positions.flatMap((pos) => {
+                      const cur = getAssetMeta(pos.ticker).currency || pos.currency
+                      return trades
                         .filter((t) => t.positionId === pos.id)
                         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                         .map((trade) => (
@@ -405,7 +488,7 @@ export function TbszDetailDialog({ account, positions, trades, open, onOpenChang
                             <TableCell>
                               <Badge className={`text-[10px] px-1.5 border ${
                                 trade.type === 'BUY'
-                                  ? 'bg-green-500/20 text-green-400 border-green-500/30'
+                                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
                                   : 'bg-red-500/20 text-red-400 border-red-500/30'
                               }`}>
                                 {trade.type === 'BUY' ? 'Vétel' : 'Eladás'}
@@ -413,16 +496,16 @@ export function TbszDetailDialog({ account, positions, trades, open, onOpenChang
                             </TableCell>
                             <TableCell className="text-sm font-semibold text-foreground">{pos.ticker}</TableCell>
                             <TableCell className="text-right text-sm text-foreground">{trade.quantity}</TableCell>
-                            <TableCell className="text-right text-sm text-muted-foreground hidden sm:table-cell">{formatCurrency(trade.price)}</TableCell>
+                            <TableCell className="text-right text-sm text-muted-foreground hidden sm:table-cell">{formatCurrency(trade.price, cur)}</TableCell>
                             <TableCell className="text-right text-sm font-medium text-foreground">
-                              {formatCurrency(trade.quantity * trade.price)}
+                              {formatCurrency(trade.quantity * trade.price, cur)}
                             </TableCell>
                             <TableCell className="text-right text-sm text-muted-foreground hidden sm:table-cell">
-                              {trade.fee ? formatCurrency(trade.fee) : '—'}
+                              {trade.fee ? formatCurrency(trade.fee, cur) : '—'}
                             </TableCell>
                           </TableRow>
                         ))
-                    )}
+                    })}
                   </TableBody>
                 </Table>
               </div>
@@ -442,11 +525,11 @@ function StatPieCard({ title, data }: { title: string; data: { name: string; val
       <ResponsiveContainer width="100%" height={140}>
         <PieChart>
           <Pie data={data} cx="50%" cy="50%" innerRadius={35} outerRadius={60}
-            paddingAngle={3} dataKey="value">
+            paddingAngle={3} dataKey="value" stroke="none">
             {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
           </Pie>
           <Tooltip
-            contentStyle={{ backgroundColor: '#111118', border: '1px solid #2e2e3e', borderRadius: 8, color: '#f1f5f9', fontSize: 11 }}
+            contentStyle={{ backgroundColor: '#18191D', border: '1px solid #27282E', borderRadius: 8, color: '#E4E4E7', fontSize: 11 }}
             formatter={(v) => [formatCurrency(Number(v)), '']}
           />
         </PieChart>

@@ -28,7 +28,7 @@ import { format } from 'date-fns'
 import { hu } from 'date-fns/locale'
 import { toast } from 'sonner'
 
-const COLORS = ['#94a3b8', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6']
+const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#06B6D4', '#EF4444', '#14B8A6']
 const CURRENT_YEAR = new Date().getFullYear()
 
 function tbszYearsUntilFree(y: number) { return Math.max(0, y + 5 - CURRENT_YEAR) }
@@ -66,24 +66,40 @@ export default function InvestmentsPage() {
       const meta = getAssetMeta(pos.ticker)
       // meta.currency is the authoritative source; fixes positions created before currency selector
       const currency = meta.currency || pos.currency
+      // Native-currency figures
       const marketValue = pos.quantity * livePrice
       const cost = pos.quantity * pos.averageBuyPrice
       const pnl = marketValue - cost
       const pnlPercent = cost > 0 ? (pnl / cost) * 100 : 0
-      return { ...pos, currency, livePrice, marketValue, pnl, pnlPercent, meta, q }
+      // HUF-converted figures — the ONLY values safe to sum across positions
+      const marketValueHuf = toHuf(marketValue, currency, fxRates)
+      const costHuf = toHuf(cost, currency, fxRates)
+      const pnlHuf = marketValueHuf - costHuf
+      return {
+        ...pos, currency, livePrice, meta, q,
+        marketValue, cost, pnl, pnlPercent,
+        marketValueHuf, costHuf, pnlHuf,
+      }
     })
-  }, [investmentPositions, quotes])
+  }, [investmentPositions, quotes, fxRates])
 
-  const totalCost = enrichedPositions.reduce((s, p) => s + p.quantity * p.averageBuyPrice, 0)
-  const totalMarketValue = enrichedPositions.reduce((s, p) => s + p.marketValue, 0)
+  // Totals — always aggregate the HUF-converted values
+  const totalCost = enrichedPositions.reduce((s, p) => s + p.costHuf, 0)
+  const totalMarketValue = enrichedPositions.reduce((s, p) => s + p.marketValueHuf, 0)
   const totalPnl = totalMarketValue - totalCost
   const totalPnlPercent = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0
 
-  const totalPortfolio = accounts
-    .filter((a) => [AccountType.TBSZ, AccountType.BROKER, AccountType.ALLAMPAPIR].includes(a.type))
-    .reduce((s, a) => s + a.balance, 0)
-
-  const pieData = accounts.filter((a) => a.balance > 0).map((a) => ({ name: a.name, value: a.balance }))
+  // Allocation by ticker, using live HUF market value
+  const pieData = useMemo(() => {
+    const byTicker: Record<string, number> = {}
+    for (const p of enrichedPositions) {
+      byTicker[p.ticker] = (byTicker[p.ticker] ?? 0) + p.marketValueHuf
+    }
+    return Object.entries(byTicker)
+      .map(([name, value]) => ({ name, value }))
+      .filter((d) => d.value > 0)
+      .sort((a, b) => b.value - a.value)
+  }, [enrichedPositions])
 
   const getPositionsForAccount = (accountId: string) =>
     enrichedPositions.filter((p) => p.accountId === accountId)
@@ -121,7 +137,7 @@ export default function InvestmentsPage() {
             <button
               onClick={refetch}
               disabled={quotesLoading}
-              className="flex items-center gap-1 text-[10px] text-primary hover:text-slate-300 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-1 text-[10px] text-primary hover:text-primary/70 disabled:opacity-50 transition-colors"
             >
               {quotesLoading
                 ? <Loader2 className="w-3 h-3 animate-spin" />
@@ -158,69 +174,92 @@ export default function InvestmentsPage() {
 
         {/* ── Summary ─────────────────────────────────────────────────────── */}
         <TabsContent value="summary" className="space-y-4 mt-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Card className="bg-card border-border">
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">Portfólió értéke</p>
-                <p className="text-xl font-bold text-foreground">{formatCurrency(totalPortfolio)}</p>
-              </CardContent>
-            </Card>
-            <Card className="bg-card border-border">
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">Nyereség / Veszteség</p>
-                <div className="flex items-center gap-2 mt-0.5">
-                  {totalPnl >= 0
-                    ? <TrendingUp className="w-4 h-4 text-green-400" />
-                    : <TrendingDown className="w-4 h-4 text-red-400" />}
-                  <p className={`text-xl font-bold ${totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {totalPnl >= 0 ? '+' : ''}{formatCurrency(totalPnl)}
+          {/* Portfolio hero */}
+          <Card className="bg-card border-border overflow-hidden">
+            <CardContent className="p-6">
+              <div className="flex items-start justify-between flex-wrap gap-6">
+                <div className="min-w-0">
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                    Portfólió piaci értéke
                   </p>
+                  <p className="text-4xl font-bold text-foreground tracking-tight mt-1.5 tabular-nums">
+                    {formatCurrency(totalMarketValue)}
+                  </p>
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                      totalPnl >= 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
+                    }`}>
+                      {totalPnl >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                      {totalPnl >= 0 ? '+' : ''}{formatCurrency(totalPnl)}
+                    </span>
+                    <span className={`text-sm font-semibold ${totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {totalPnlPercent >= 0 ? '+' : ''}{totalPnlPercent.toFixed(2)}%
+                    </span>
+                    <span className="text-xs text-muted-foreground">összesített hozam</span>
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
-            <Card className="bg-card border-border">
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">Hozam</p>
-                <p className={`text-xl font-bold mt-0.5 ${totalPnlPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {totalPnlPercent >= 0 ? '+' : ''}{totalPnlPercent.toFixed(2)}%
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+                <div className="flex gap-3">
+                  <div className="bg-muted rounded-xl px-4 py-3 min-w-[140px]">
+                    <p className="text-[11px] text-muted-foreground">Bekerülési költség</p>
+                    <p className="text-lg font-bold text-foreground mt-0.5 tabular-nums">
+                      {formatCurrency(totalCost)}
+                    </p>
+                  </div>
+                  <div className="bg-muted rounded-xl px-4 py-3 min-w-[100px]">
+                    <p className="text-[11px] text-muted-foreground">Pozíciók</p>
+                    <p className="text-lg font-bold text-foreground mt-0.5">
+                      {enrichedPositions.length} <span className="text-sm text-muted-foreground font-medium">db</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           <PortfolioGrowthChart
             positions={enrichedPositions.map((p) => ({ ticker: p.ticker, quantity: p.quantity }))}
+            fxRates={fxRates}
           />
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
             <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="text-base text-foreground">Allokáció</CardTitle>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base text-foreground">Eszközallokáció</CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={200}>
-                  <PieChart>
-                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80}
-                      paddingAngle={3} dataKey="value">
-                      {pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                    </Pie>
-                    <Tooltip
-                      formatter={(v) => formatCurrency(Number(v))}
-                      contentStyle={{ backgroundColor: '#18191D', border: '1px solid #27282E', borderRadius: 8, color: '#E4E4E7' }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="space-y-2 mt-2">
-                  {pieData.map((d, i) => (
-                    <div key={d.name} className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                        <span className="text-muted-foreground truncate">{d.name}</span>
-                      </div>
-                      <span className="text-foreground font-medium">{formatCurrency(d.value)}</span>
+                {pieData.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-16">Nincs pozíció</p>
+                ) : (
+                  <>
+                    <ResponsiveContainer width="100%" height={180}>
+                      <PieChart>
+                        <Pie data={pieData} cx="50%" cy="50%" innerRadius={48} outerRadius={75}
+                          paddingAngle={3} dataKey="value" stroke="none">
+                          {pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                        </Pie>
+                        <Tooltip
+                          formatter={(v) => formatCurrency(Number(v))}
+                          contentStyle={{ backgroundColor: '#18191D', border: '1px solid #27282E', borderRadius: 8, color: '#E4E4E7' }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="space-y-2 mt-3">
+                      {pieData.map((d, i) => {
+                        const pct = totalMarketValue > 0 ? (d.value / totalMarketValue) * 100 : 0
+                        return (
+                          <div key={d.name} className="flex items-center justify-between text-xs gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                              <span className="text-foreground font-medium truncate">{d.name}</span>
+                              <span className="text-muted-foreground shrink-0">{pct.toFixed(1)}%</span>
+                            </div>
+                            <span className="text-muted-foreground tabular-nums shrink-0">{formatCurrency(d.value)}</span>
+                          </div>
+                        )
+                      })}
                     </div>
-                  ))}
-                </div>
+                  </>
+                )}
               </CardContent>
             </Card>
 
@@ -617,8 +656,12 @@ interface EnrichedPosition {
   averageBuyPrice: number
   livePrice: number
   marketValue: number
+  cost: number
   pnl: number
   pnlPercent: number
+  marketValueHuf: number
+  costHuf: number
+  pnlHuf: number
   meta: ReturnType<typeof getAssetMeta>
   q: QuoteResult | undefined
 }
@@ -734,7 +777,12 @@ function PortfolioAreaChart({ data }: { data: { date: string; value: number }[] 
   return <div ref={containerRef} style={{ width: '100%', height: 240 }} />
 }
 
-function PortfolioGrowthChart({ positions }: { positions: { ticker: string; quantity: number }[] }) {
+function PortfolioGrowthChart({
+  positions, fxRates,
+}: {
+  positions: { ticker: string; quantity: number }[]
+  fxRates: ReturnType<typeof useFxRates>['rates']
+}) {
   const [selectedRange, setSelectedRange] = useState(GROWTH_RANGES[6])
   const [chartData, setChartData] = useState<{ date: string; value: number }[]>([])
   const [loading, setLoading] = useState(false)
@@ -746,6 +794,9 @@ function PortfolioGrowthChart({ positions }: { positions: { ticker: string; quan
     setLoading(true)
 
     const uniqueTickers = [...new Set(positions.map((p) => p.ticker))]
+    // Quantity and currency per ticker
+    const qtyByTicker: Record<string, number> = {}
+    for (const p of positions) qtyByTicker[p.ticker] = (qtyByTicker[p.ticker] ?? 0) + p.quantity
 
     Promise.all(
       uniqueTickers.map((ticker) =>
@@ -770,11 +821,14 @@ function PortfolioGrowthChart({ positions }: { positions: { ticker: string; quan
 
       for (const date of allDates) {
         let total = 0; let hasAny = false
-        for (const { ticker } of positions) {
+        for (const ticker of uniqueTickers) {
           const map = priceMaps[ticker] ?? {}
           if (map[date] != null) lastPrice[ticker] = map[date]
           if (lastPrice[ticker] != null) {
-            total += lastPrice[ticker] * positions.filter(p => p.ticker === ticker).reduce((s, p) => s + p.quantity, 0)
+            // Convert native price to HUF before aggregating across currencies
+            const currency = getAssetMeta(ticker).currency || 'HUF'
+            const priceHuf = toHuf(lastPrice[ticker], currency, fxRates)
+            total += priceHuf * (qtyByTicker[ticker] ?? 0)
             hasAny = true
           }
         }
@@ -784,7 +838,7 @@ function PortfolioGrowthChart({ positions }: { positions: { ticker: string; quan
       setChartData(merged)
     }).finally(() => setLoading(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedRange.range, selectedRange.interval, posKey])
+  }, [selectedRange.range, selectedRange.interval, posKey, fxRates.EUR, fxRates.USD])
 
   const startValue = chartData[0]?.value ?? 0
   const endValue = chartData[chartData.length - 1]?.value ?? 0
@@ -861,15 +915,15 @@ function CustomViewCard({
   const viewAccounts = accounts.filter((a) => view.accountIds.includes(a.id))
   const viewPositions = enrichedPositions.filter((p) => view.accountIds.includes(p.accountId))
 
-  const totalValue = viewPositions.reduce((s, p) => s + p.marketValue, 0)
-  const totalCost  = viewPositions.reduce((s, p) => s + p.quantity * p.averageBuyPrice, 0)
+  const totalValue = viewPositions.reduce((s, p) => s + p.marketValueHuf, 0)
+  const totalCost  = viewPositions.reduce((s, p) => s + p.costHuf, 0)
   const totalPnl   = totalValue - totalCost
   const totalPnlPct = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0
 
   // Sector breakdown for this view
   const sectorMap: Record<string, number> = {}
   viewPositions.forEach((p) => {
-    sectorMap[p.meta.sector] = (sectorMap[p.meta.sector] ?? 0) + p.marketValue
+    sectorMap[p.meta.sector] = (sectorMap[p.meta.sector] ?? 0) + p.marketValueHuf
   })
   const sectorData = Object.entries(sectorMap)
     .map(([name, value]) => ({ name, value, pct: totalValue > 0 ? (value / totalValue) * 100 : 0 }))
@@ -942,7 +996,7 @@ function CustomViewCard({
                     <span className="text-muted-foreground">{pos.quantity} db</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-foreground">{formatCurrency(pos.marketValue, pos.currency)}</span>
+                    <span className="text-foreground">{formatCurrency(pos.marketValueHuf)}</span>
                     <span className={`${pos.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                       {pos.pnl >= 0 ? '+' : ''}{pos.pnlPercent.toFixed(1)}%
                     </span>

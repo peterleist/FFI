@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { createChart, ColorType, LineStyle, LineSeries } from 'lightweight-charts'
 import type { IChartApi, ISeriesApi, Time } from 'lightweight-charts'
-import { Plus, X, TrendingUp, TrendingDown, RefreshCw, BarChart2 } from 'lucide-react'
+import { Eye, EyeOff, TrendingUp, TrendingDown, RefreshCw, BarChart2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { useAppStore } from '@/lib/store'
 import { toYahooSymbol, getAssetMeta, useQuotes, useFxRates, toHuf } from '@/lib/market-data'
@@ -395,8 +395,8 @@ export function MarketWidget() {
           )}
         </div>
 
-        {/* Legend */}
-        <div className="mt-4 pt-4 border-t border-border space-y-2">
+        {/* Legend — click a row to toggle it on the chart */}
+        <div className="mt-4 pt-4 border-t border-border space-y-0.5">
           {tickers.map((ticker, i) => {
             const color = COLORS[i % COLORS.length]
             const chg = finalChanges[ticker] ?? 0
@@ -407,16 +407,20 @@ export function MarketWidget() {
             const isPrimary = ticker === primaryTicker
 
             return (
-              <div
+              <button
                 key={ticker}
-                className={`flex items-center gap-3 py-0.5 transition-opacity ${!isVis ? 'opacity-30' : ''}`}
+                onClick={() => { if (!isPrimary) toggle(ticker) }}
+                disabled={isPrimary}
+                className={`w-full flex items-center gap-3 py-1.5 px-2 -mx-2 rounded-lg text-left transition-all ${
+                  isPrimary ? 'cursor-default' : 'cursor-pointer hover:bg-muted'
+                } ${!isVis ? 'opacity-40' : ''}`}
               >
                 <div className="w-1 h-5 rounded-full shrink-0" style={{ backgroundColor: color }} />
                 <span className="text-sm font-medium text-foreground flex-1 truncate min-w-0">
                   {meta.name !== ticker ? meta.name : ticker}
                 </span>
                 {priceInfo && (
-                  <span className="text-sm text-muted-foreground tabular-nums mr-2 shrink-0 text-right">
+                  <span className="text-sm text-muted-foreground tabular-nums shrink-0 text-right">
                     {formatCurrency(priceInfo.price, priceInfo.currency)}
                     {priceInfo.currency !== 'HUF' && (
                       <span className="block text-xs text-muted-foreground/60">
@@ -430,38 +434,31 @@ export function MarketWidget() {
                 }`}>
                   {isPos ? '↑' : '↓'} {Math.abs(chg).toFixed(2)}%
                 </span>
-                {isPrimary
-                  ? <div className="w-5 shrink-0" />
-                  : (
-                    <button
-                      onClick={() => toggle(ticker)}
-                      className="w-5 h-5 shrink-0 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  )
-                }
-              </div>
+                <span className="w-5 shrink-0 flex items-center justify-center text-muted-foreground">
+                  {isPrimary ? null : isVis ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                </span>
+              </button>
             )
           })}
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between mt-4 pt-3 border-t border-border">
-          <button className="flex items-center gap-2 text-sm text-primary font-medium hover:opacity-80 transition-opacity">
-            <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
-              <Plus className="w-3 h-3 text-white" />
-            </div>
-            Összehasonlítás hozzáadása
-          </button>
-          <button
-            onClick={() => setVisible(primaryTicker ? [primaryTicker] : [])}
-            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <X className="w-3.5 h-3.5" />
-            Összes eltávolítása
-          </button>
-        </div>
+        {tickers.length > 1 && (
+          <div className="flex items-center justify-end gap-4 mt-3 pt-3 border-t border-border">
+            <button
+              onClick={() => setVisible(tickers)}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Összes megjelenítése
+            </button>
+            <button
+              onClick={() => setVisible(primaryTicker ? [primaryTicker] : [])}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Csak az elsődleges
+            </button>
+          </div>
+        )}
 
       </CardContent>
     </Card>
