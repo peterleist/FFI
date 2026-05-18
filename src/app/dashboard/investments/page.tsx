@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
-  AreaChart, Area, XAxis, YAxis, CartesianGrid,
 } from 'recharts'
+import { createChart, ColorType, AreaSeries } from 'lightweight-charts'
+import type { IChartApi, Time } from 'lightweight-charts'
 import { Plus, TrendingUp, TrendingDown, RefreshCw, ExternalLink, Loader2, Pencil, Trash2, BarChart2, Eye } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -21,13 +22,13 @@ import { formatCurrency } from '@/lib/utils'
 import { TradeDialog } from '@/components/investments/trade-dialog'
 import { TbszDetailDialog } from '@/components/investments/tbsz-detail-dialog'
 import { CustomViewDialog } from '@/components/investments/custom-view-dialog'
-import { useQuotes, getAssetMeta, toYahooSymbol, type QuoteResult } from '@/lib/market-data'
+import { useQuotes, getAssetMeta, toYahooSymbol, useFxRates, toHuf, type QuoteResult } from '@/lib/market-data'
 import type { CustomPortfolioView } from '@/lib/store'
 import { format } from 'date-fns'
 import { hu } from 'date-fns/locale'
 import { toast } from 'sonner'
 
-const COLORS = ['#94a3b8', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#14b8a6']
+const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EC4899', '#8B5CF6', '#06B6D4', '#EF4444', '#14B8A6']
 const CURRENT_YEAR = new Date().getFullYear()
 
 function tbszYearsUntilFree(y: number) { return Math.max(0, y + 5 - CURRENT_YEAR) }
@@ -36,7 +37,7 @@ function tbszProgress(y: number) { return Math.min(((CURRENT_YEAR - y) / 5) * 10
 export default function InvestmentsPage() {
   const {
     accounts, investmentPositions, investmentTrades, updateAccount,
-    customViews, deleteCustomView,
+    customViews, deleteCustomView, deleteInvestmentTrade, deleteInvestmentPosition,
   } = useAppStore()
 
   const [tradeDialogOpen, setTradeDialogOpen] = useState(false)
@@ -56,30 +57,49 @@ export default function InvestmentsPage() {
   // Live quotes for all investment positions
   const allTickers = [...new Set(investmentPositions.map((p) => p.ticker))]
   const { quotes, loading: quotesLoading, lastFetched, refetch } = useQuotes(allTickers)
+  const { rates: fxRates } = useFxRates()
 
   const enrichedPositions = useMemo(() => {
     return investmentPositions.map((pos) => {
       const q = quotes[pos.ticker]
       const livePrice = q?.price ?? pos.currentPrice
+      const meta = getAssetMeta(pos.ticker)
+      // meta.currency is the authoritative source; fixes positions created before currency selector
+      const currency = meta.currency || pos.currency
+      // Native-currency figures
       const marketValue = pos.quantity * livePrice
       const cost = pos.quantity * pos.averageBuyPrice
       const pnl = marketValue - cost
       const pnlPercent = cost > 0 ? (pnl / cost) * 100 : 0
-      const meta = getAssetMeta(pos.ticker)
-      return { ...pos, livePrice, marketValue, pnl, pnlPercent, meta, q }
+      // HUF-converted figures — the ONLY values safe to sum across positions
+      const marketValueHuf = toHuf(marketValue, currency, fxRates)
+      const costHuf = toHuf(cost, currency, fxRates)
+      const pnlHuf = marketValueHuf - costHuf
+      return {
+        ...pos, currency, livePrice, meta, q,
+        marketValue, cost, pnl, pnlPercent,
+        marketValueHuf, costHuf, pnlHuf,
+      }
     })
-  }, [investmentPositions, quotes])
+  }, [investmentPositions, quotes, fxRates])
 
-  const totalCost = enrichedPositions.reduce((s, p) => s + p.quantity * p.averageBuyPrice, 0)
-  const totalMarketValue = enrichedPositions.reduce((s, p) => s + p.marketValue, 0)
+  // Totals — always aggregate the HUF-converted values
+  const totalCost = enrichedPositions.reduce((s, p) => s + p.costHuf, 0)
+  const totalMarketValue = enrichedPositions.reduce((s, p) => s + p.marketValueHuf, 0)
   const totalPnl = totalMarketValue - totalCost
   const totalPnlPercent = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0
 
-  const totalPortfolio = accounts
-    .filter((a) => [AccountType.TBSZ, AccountType.BROKER, AccountType.ALLAMPAPIR].includes(a.type))
-    .reduce((s, a) => s + a.balance, 0)
-
-  const pieData = accounts.filter((a) => a.balance > 0).map((a) => ({ name: a.name, value: a.balance }))
+  // Allocation by ticker, using live HUF market value
+  const pieData = useMemo(() => {
+    const byTicker: Record<string, number> = {}
+    for (const p of enrichedPositions) {
+      byTicker[p.ticker] = (byTicker[p.ticker] ?? 0) + p.marketValueHuf
+    }
+    return Object.entries(byTicker)
+      .map(([name, value]) => ({ name, value }))
+      .filter((d) => d.value > 0)
+      .sort((a, b) => b.value - a.value)
+  }, [enrichedPositions])
 
   const getPositionsForAccount = (accountId: string) =>
     enrichedPositions.filter((p) => p.accountId === accountId)
@@ -106,18 +126,18 @@ export default function InvestmentsPage() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-[#f1f5f9]">Befektetések</h1>
+          <h1 className="text-2xl font-bold text-foreground">Befektetések</h1>
           <div className="flex items-center gap-3 mt-0.5">
-            <p className="text-[#64748b] text-sm">Portfólió összesítő</p>
+            <p className="text-muted-foreground text-sm">Portfólió összesítő</p>
             {lastFetched && (
-              <span className="text-[10px] text-[#64748b]">
+              <span className="text-[10px] text-muted-foreground">
                 Frissítve: {format(new Date(lastFetched), 'HH:mm:ss', { locale: hu })}
               </span>
             )}
             <button
               onClick={refetch}
               disabled={quotesLoading}
-              className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-300 disabled:opacity-50 transition-colors"
+              className="flex items-center gap-1 text-[10px] text-primary hover:text-primary/70 disabled:opacity-50 transition-colors"
             >
               {quotesLoading
                 ? <Loader2 className="w-3 h-3 animate-spin" />
@@ -128,7 +148,7 @@ export default function InvestmentsPage() {
         </div>
         <Button
           onClick={() => openTradeDialog()}
-          className="bg-slate-600 hover:bg-slate-500 text-white gap-2"
+          className="bg-primary hover:bg-primary/90 text-white gap-2"
         >
           <Plus className="w-4 h-4" />
           Új ügylet
@@ -136,7 +156,7 @@ export default function InvestmentsPage() {
       </div>
 
       <Tabs defaultValue="summary">
-        <TabsList className="bg-[#1e1e2e] border border-[#2e2e3e] flex-wrap h-auto gap-1">
+        <TabsList className="bg-muted border border-border flex-wrap h-auto gap-1">
           {[
             ['summary', 'Összesítő'],
             ['tbsz', 'TBSZ Számlák'],
@@ -145,7 +165,7 @@ export default function InvestmentsPage() {
           ].map(([v, l]) => (
             <TabsTrigger
               key={v} value={v}
-              className="data-[state=active]:bg-slate-600 data-[state=active]:text-white"
+              className="data-[state=active]:bg-primary data-[state=active]:text-white"
             >
               {l}
             </TabsTrigger>
@@ -154,122 +174,160 @@ export default function InvestmentsPage() {
 
         {/* ── Summary ─────────────────────────────────────────────────────── */}
         <TabsContent value="summary" className="space-y-4 mt-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Card className="bg-[#111118] border-[#1e1e2e]">
-              <CardContent className="p-4">
-                <p className="text-xs text-[#64748b]">Portfólió értéke</p>
-                <p className="text-xl font-bold text-[#f1f5f9]">{formatCurrency(totalPortfolio)}</p>
-              </CardContent>
-            </Card>
-            <Card className="bg-[#111118] border-[#1e1e2e]">
-              <CardContent className="p-4">
-                <p className="text-xs text-[#64748b]">Nyereség / Veszteség</p>
-                <div className="flex items-center gap-2 mt-0.5">
-                  {totalPnl >= 0
-                    ? <TrendingUp className="w-4 h-4 text-green-400" />
-                    : <TrendingDown className="w-4 h-4 text-red-400" />}
-                  <p className={`text-xl font-bold ${totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {totalPnl >= 0 ? '+' : ''}{formatCurrency(totalPnl)}
+          {/* Portfolio hero */}
+          <Card className="bg-card border-border overflow-hidden">
+            <CardContent className="p-6">
+              <div className="flex items-start justify-between flex-wrap gap-6">
+                <div className="min-w-0">
+                  <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
+                    Portfólió piaci értéke
                   </p>
+                  <p className="text-4xl font-bold text-foreground tracking-tight mt-1.5 tabular-nums">
+                    {formatCurrency(totalMarketValue)}
+                  </p>
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                      totalPnl >= 0 ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'
+                    }`}>
+                      {totalPnl >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                      {totalPnl >= 0 ? '+' : ''}{formatCurrency(totalPnl)}
+                    </span>
+                    <span className={`text-sm font-semibold ${totalPnl >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {totalPnlPercent >= 0 ? '+' : ''}{totalPnlPercent.toFixed(2)}%
+                    </span>
+                    <span className="text-xs text-muted-foreground">összesített hozam</span>
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
-            <Card className="bg-[#111118] border-[#1e1e2e]">
-              <CardContent className="p-4">
-                <p className="text-xs text-[#64748b]">Hozam</p>
-                <p className={`text-xl font-bold mt-0.5 ${totalPnlPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {totalPnlPercent >= 0 ? '+' : ''}{totalPnlPercent.toFixed(2)}%
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+                <div className="flex gap-3">
+                  <div className="bg-muted rounded-xl px-4 py-3 min-w-[140px]">
+                    <p className="text-[11px] text-muted-foreground">Bekerülési költség</p>
+                    <p className="text-lg font-bold text-foreground mt-0.5 tabular-nums">
+                      {formatCurrency(totalCost)}
+                    </p>
+                  </div>
+                  <div className="bg-muted rounded-xl px-4 py-3 min-w-[100px]">
+                    <p className="text-[11px] text-muted-foreground">Pozíciók</p>
+                    <p className="text-lg font-bold text-foreground mt-0.5">
+                      {enrichedPositions.length} <span className="text-sm text-muted-foreground font-medium">db</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           <PortfolioGrowthChart
             positions={enrichedPositions.map((p) => ({ ticker: p.ticker, quantity: p.quantity }))}
+            fxRates={fxRates}
           />
 
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-            <Card className="bg-[#111118] border-[#1e1e2e]">
-              <CardHeader>
-                <CardTitle className="text-base text-[#f1f5f9]">Allokáció</CardTitle>
+            <Card className="bg-card border-border">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base text-foreground">Eszközallokáció</CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={200}>
-                  <PieChart>
-                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80}
-                      paddingAngle={3} dataKey="value">
-                      {pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                    </Pie>
-                    <Tooltip
-                      formatter={(v) => formatCurrency(Number(v))}
-                      contentStyle={{ backgroundColor: '#1e1e2e', border: '1px solid #2e2e3e', borderRadius: 8, color: '#f1f5f9' }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="space-y-2 mt-2">
-                  {pieData.map((d, i) => (
-                    <div key={d.name} className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                        <span className="text-[#64748b] truncate">{d.name}</span>
-                      </div>
-                      <span className="text-[#f1f5f9] font-medium">{formatCurrency(d.value)}</span>
+                {pieData.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-16">Nincs pozíció</p>
+                ) : (
+                  <>
+                    <ResponsiveContainer width="100%" height={180}>
+                      <PieChart>
+                        <Pie data={pieData} cx="50%" cy="50%" innerRadius={48} outerRadius={75}
+                          paddingAngle={3} dataKey="value" stroke="none">
+                          {pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                        </Pie>
+                        <Tooltip
+                          formatter={(v) => formatCurrency(Number(v))}
+                          contentStyle={{ backgroundColor: '#18191D', border: '1px solid #27282E', borderRadius: 8, color: '#E4E4E7' }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="space-y-2 mt-3">
+                      {pieData.map((d, i) => {
+                        const pct = totalMarketValue > 0 ? (d.value / totalMarketValue) * 100 : 0
+                        return (
+                          <div key={d.name} className="flex items-center justify-between text-xs gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                              <span className="text-foreground font-medium truncate">{d.name}</span>
+                              <span className="text-muted-foreground shrink-0">{pct.toFixed(1)}%</span>
+                            </div>
+                            <span className="text-muted-foreground tabular-nums shrink-0">{formatCurrency(d.value)}</span>
+                          </div>
+                        )
+                      })}
                     </div>
-                  ))}
-                </div>
+                  </>
+                )}
               </CardContent>
             </Card>
 
-            <Card className="xl:col-span-2 bg-[#111118] border-[#1e1e2e]">
+            <Card className="xl:col-span-2 bg-card border-border">
               <CardHeader className="flex-row items-center justify-between pb-2">
-                <CardTitle className="text-base text-[#f1f5f9]">Összes pozíció</CardTitle>
-                {quotesLoading && <Loader2 className="w-4 h-4 animate-spin text-[#64748b]" />}
+                <CardTitle className="text-base text-foreground">Összes pozíció</CardTitle>
+                {quotesLoading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
               </CardHeader>
               <CardContent className="p-0">
                 <Table>
                   <TableHeader>
-                    <TableRow className="border-[#1e1e2e] hover:bg-transparent">
-                      <TableHead className="text-[#64748b] text-xs">Ticker</TableHead>
-                      <TableHead className="text-[#64748b] text-xs">Szektor</TableHead>
-                      <TableHead className="text-[#64748b] text-xs text-right">Db</TableHead>
-                      <TableHead className="text-[#64748b] text-xs text-right">Átl. ár</TableHead>
-                      <TableHead className="text-[#64748b] text-xs text-right">Aktuális</TableHead>
-                      <TableHead className="text-[#64748b] text-xs text-right">Érték</TableHead>
-                      <TableHead className="text-[#64748b] text-xs text-right">P&L</TableHead>
+                    <TableRow className="border-border hover:bg-transparent">
+                      <TableHead className="text-muted-foreground text-xs">Ticker</TableHead>
+                      <TableHead className="text-muted-foreground text-xs">Szektor</TableHead>
+                      <TableHead className="text-muted-foreground text-xs text-right">Db</TableHead>
+                      <TableHead className="text-muted-foreground text-xs text-right">Átl. ár</TableHead>
+                      <TableHead className="text-muted-foreground text-xs text-right">Aktuális</TableHead>
+                      <TableHead className="text-muted-foreground text-xs text-right">Érték</TableHead>
+                      <TableHead className="text-muted-foreground text-xs text-right">P&L</TableHead>
+                      <TableHead className="w-8" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {enrichedPositions.map((pos) => (
-                      <TableRow key={pos.id} className="border-[#1e1e2e] hover:bg-[#1e1e2e]/50">
+                      <TableRow key={pos.id} className="border-border hover:bg-muted/50 group">
                         <TableCell>
-                          <p className="text-sm font-semibold text-[#f1f5f9]">{pos.ticker}</p>
-                          <p className="text-xs text-[#64748b] max-w-28 truncate">{pos.meta.name}</p>
+                          <p className="text-sm font-semibold text-foreground">{pos.ticker}</p>
+                          <p className="text-xs text-muted-foreground max-w-28 truncate">{pos.meta.name}</p>
                         </TableCell>
                         <TableCell>
-                          <span className="text-xs text-[#64748b]">{pos.meta.sector}</span>
+                          <span className="text-xs text-muted-foreground">{pos.meta.sector}</span>
                         </TableCell>
-                        <TableCell className="text-right text-sm text-[#f1f5f9]">{pos.quantity}</TableCell>
-                        <TableCell className="text-right text-sm text-[#64748b]">
-                          {formatCurrency(pos.averageBuyPrice)}
+                        <TableCell className="text-right text-sm text-foreground">{pos.quantity}</TableCell>
+                        <TableCell className="text-right text-sm text-muted-foreground">
+                          <PriceCell amount={pos.averageBuyPrice} currency={pos.currency} fxRates={fxRates} />
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex flex-col items-end">
-                            <span className="text-sm text-[#f1f5f9]">{formatCurrency(pos.livePrice)}</span>
-                            {pos.q?.changePercent != null && (
-                              <span className={`text-[10px] ${pos.q.changePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                {pos.q.changePercent >= 0 ? '+' : ''}{pos.q.changePercent.toFixed(2)}%
-                              </span>
-                            )}
-                          </div>
+                          <PriceCell amount={pos.livePrice} currency={pos.currency} fxRates={fxRates} className="text-sm text-foreground" />
+                          {pos.q?.changePercent != null && (
+                            <span className={`text-[10px] ${pos.q.changePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {pos.q.changePercent >= 0 ? '+' : ''}{pos.q.changePercent.toFixed(2)}%
+                            </span>
+                          )}
                         </TableCell>
-                        <TableCell className="text-right text-sm font-medium text-[#f1f5f9]">
-                          {formatCurrency(pos.marketValue)}
+                        <TableCell className="text-right text-sm font-medium text-foreground">
+                          <PriceCell amount={pos.marketValue} currency={pos.currency} fxRates={fxRates} />
                         </TableCell>
                         <TableCell className="text-right">
                           <div className={`text-sm font-semibold ${pos.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {pos.pnl >= 0 ? '+' : ''}{formatCurrency(pos.pnl)}
+                            {pos.pnl >= 0 ? '+' : ''}{formatCurrency(pos.pnl, pos.currency)}
+                            {pos.currency !== 'HUF' && (
+                              <span className="block text-[10px] font-normal text-muted-foreground/70">
+                                {pos.pnl >= 0 ? '+' : ''}{formatCurrency(toHuf(pos.pnl, pos.currency, fxRates))}
+                              </span>
+                            )}
                             <p className="text-[10px] font-normal">({pos.pnlPercent >= 0 ? '+' : ''}{pos.pnlPercent.toFixed(1)}%)</p>
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          <button
+                            onClick={() => {
+                              deleteInvestmentPosition(pos.id)
+                              toast.success(`${pos.ticker} törölve`)
+                            }}
+                            className="w-6 h-6 flex items-center justify-center rounded text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -289,17 +347,17 @@ export default function InvestmentsPage() {
             const isFree = yearsLeft === 0
 
             return (
-              <Card key={acc.id} className="bg-[#111118] border-[#1e1e2e]">
+              <Card key={acc.id} className="bg-card border-border">
                 <CardHeader>
                   <div className="flex items-center justify-between flex-wrap gap-3">
                     <div>
-                      <CardTitle className="text-base text-[#f1f5f9]">{acc.name}</CardTitle>
+                      <CardTitle className="text-base text-foreground">{acc.name}</CardTitle>
                       <div className="flex items-center gap-3 mt-1">
-                        <span className="text-xl font-bold text-[#f1f5f9]">{formatCurrency(acc.balance)}</span>
+                        <span className="text-xl font-bold text-foreground">{formatCurrency(acc.balance)}</span>
                         {isFree ? (
                           <Badge className="bg-green-500/20 text-green-400 border-green-500/30 border">Adómentes</Badge>
                         ) : (
-                          <span className="text-sm text-[#64748b]">{yearsLeft} év múlva adómentes</span>
+                          <span className="text-sm text-muted-foreground">{yearsLeft} év múlva adómentes</span>
                         )}
                       </div>
                     </div>
@@ -307,7 +365,7 @@ export default function InvestmentsPage() {
                       <Button
                         onClick={() => setDetailAccount(acc.id)}
                         variant="outline" size="sm"
-                        className="border-[#2e2e3e] text-[#64748b] hover:text-[#f1f5f9] hover:bg-[#1e1e2e] gap-1.5 h-8 text-xs"
+                        className="border-border text-muted-foreground hover:text-foreground hover:bg-muted gap-1.5 h-8 text-xs"
                       >
                         <BarChart2 className="w-3.5 h-3.5" />
                         Részletes nézet
@@ -315,7 +373,7 @@ export default function InvestmentsPage() {
                       <Button
                         onClick={() => openTradeDialog(acc.id)}
                         variant="outline" size="sm"
-                        className="border-[#2e2e3e] text-[#64748b] hover:text-[#f1f5f9] hover:bg-[#1e1e2e] gap-1.5 h-8 text-xs"
+                        className="border-border text-muted-foreground hover:text-foreground hover:bg-muted gap-1.5 h-8 text-xs"
                       >
                         <Plus className="w-3.5 h-3.5" />
                         Új ügylet
@@ -324,11 +382,11 @@ export default function InvestmentsPage() {
                   </div>
                   {acc.tbszYear && (
                     <div className="mt-3 space-y-1">
-                      <div className="flex justify-between text-xs text-[#64748b]">
+                      <div className="flex justify-between text-xs text-muted-foreground">
                         <span>Nyitva: {acc.tbszYear}</span>
                         <span>{progress.toFixed(0)}% — {isFree ? 'Adómentességi időszak' : `${yearsLeft} év hátra`}</span>
                       </div>
-                      <Progress value={progress} className="h-1.5 bg-[#1e1e2e]" />
+                      <Progress value={progress} className="h-1.5 bg-muted" />
                     </div>
                   )}
                 </CardHeader>
@@ -336,60 +394,75 @@ export default function InvestmentsPage() {
                   {positions.length > 0 ? (
                     <Table>
                       <TableHeader>
-                        <TableRow className="border-[#1e1e2e] hover:bg-transparent">
-                          <TableHead className="text-[#64748b] text-xs">Ticker</TableHead>
-                          <TableHead className="text-[#64748b] text-xs">Szektor</TableHead>
-                          <TableHead className="text-[#64748b] text-xs text-right">Db</TableHead>
-                          <TableHead className="text-[#64748b] text-xs text-right">Átl. ár</TableHead>
-                          <TableHead className="text-[#64748b] text-xs text-right">Live ár</TableHead>
-                          <TableHead className="text-[#64748b] text-xs text-right">P&L</TableHead>
+                        <TableRow className="border-border hover:bg-transparent">
+                          <TableHead className="text-muted-foreground text-xs">Ticker</TableHead>
+                          <TableHead className="text-muted-foreground text-xs">Szektor</TableHead>
+                          <TableHead className="text-muted-foreground text-xs text-right">Db</TableHead>
+                          <TableHead className="text-muted-foreground text-xs text-right">Átl. ár</TableHead>
+                          <TableHead className="text-muted-foreground text-xs text-right">Live ár</TableHead>
+                          <TableHead className="text-muted-foreground text-xs text-right">P&L</TableHead>
+                          <TableHead className="w-8" />
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {positions.map((pos) => (
-                          <TableRow key={pos.id} className="border-[#1e1e2e] hover:bg-[#1e1e2e]/50">
+                          <TableRow key={pos.id} className="border-border hover:bg-muted/50 group">
                             <TableCell>
-                              <p className="text-sm font-semibold text-[#f1f5f9]">{pos.ticker}</p>
-                              <p className="text-xs text-[#64748b]">{pos.meta.name}</p>
+                              <p className="text-sm font-semibold text-foreground">{pos.ticker}</p>
+                              <p className="text-xs text-muted-foreground">{pos.meta.name}</p>
                             </TableCell>
                             <TableCell>
-                              <span className="text-xs text-[#64748b]">{pos.meta.sector}</span>
+                              <span className="text-xs text-muted-foreground">{pos.meta.sector}</span>
                             </TableCell>
-                            <TableCell className="text-right text-sm text-[#f1f5f9]">{pos.quantity}</TableCell>
-                            <TableCell className="text-right text-sm text-[#64748b]">
-                              {formatCurrency(pos.averageBuyPrice)}
+                            <TableCell className="text-right text-sm text-foreground">{pos.quantity}</TableCell>
+                            <TableCell className="text-right text-sm text-muted-foreground">
+                              <PriceCell amount={pos.averageBuyPrice} currency={pos.currency} fxRates={fxRates} />
                             </TableCell>
                             <TableCell className="text-right">
-                              <div className="flex flex-col items-end">
-                                <span className="text-sm text-[#f1f5f9] font-medium">{formatCurrency(pos.livePrice)}</span>
-                                {pos.q?.changePercent != null && (
-                                  <span className={`text-[10px] ${pos.q.changePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                    {pos.q.changePercent >= 0 ? '+' : ''}{pos.q.changePercent.toFixed(2)}% ma
-                                  </span>
-                                )}
-                              </div>
+                              <PriceCell amount={pos.livePrice} currency={pos.currency} fxRates={fxRates} className="text-sm text-foreground font-medium" />
+                              {pos.q?.changePercent != null && (
+                                <span className={`text-[10px] ${pos.q.changePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                  {pos.q.changePercent >= 0 ? '+' : ''}{pos.q.changePercent.toFixed(2)}% ma
+                                </span>
+                              )}
                             </TableCell>
                             <TableCell className="text-right">
                               <span className={`text-sm font-semibold ${pos.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                {pos.pnl >= 0 ? '+' : ''}{formatCurrency(pos.pnl)}
+                                {pos.pnl >= 0 ? '+' : ''}{formatCurrency(pos.pnl, pos.currency)}
+                                {pos.currency !== 'HUF' && (
+                                  <span className="block text-[10px] font-normal text-muted-foreground/70">
+                                    {pos.pnl >= 0 ? '+' : ''}{formatCurrency(toHuf(pos.pnl, pos.currency, fxRates))}
+                                  </span>
+                                )}
                                 <span className="text-[10px] font-normal ml-1">({pos.pnlPercent >= 0 ? '+' : ''}{pos.pnlPercent.toFixed(1)}%)</span>
                               </span>
+                            </TableCell>
+                            <TableCell>
+                              <button
+                                onClick={() => {
+                                  deleteInvestmentPosition(pos.id)
+                                  toast.success(`${pos.ticker} törölve`)
+                                }}
+                                className="w-6 h-6 flex items-center justify-center rounded text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
                     </Table>
                   ) : (
-                    <p className="text-[#64748b] text-sm text-center py-4">Nincs pozíció ezen a számlán</p>
+                    <p className="text-muted-foreground text-sm text-center py-4">Nincs pozíció ezen a számlán</p>
                   )}
 
                   {positions.length > 0 && (
                     <div>
-                      <p className="text-xs text-[#64748b] mb-2 font-medium uppercase tracking-wide">Ügylet előzmények</p>
+                      <p className="text-xs text-muted-foreground mb-2 font-medium uppercase tracking-wide">Ügylet előzmények</p>
                       <div className="space-y-1.5">
                         {positions.flatMap((pos) =>
                           getTradesForPosition(pos.id).map((trade) => (
-                            <div key={trade.id} className="flex items-center justify-between text-xs bg-[#1e1e2e] rounded-lg px-3 py-2">
+                            <div key={trade.id} className="flex items-center justify-between text-xs bg-muted rounded-lg px-3 py-2 group">
                               <div className="flex items-center gap-2">
                                 <Badge className={`text-[10px] px-1.5 py-0 border ${
                                   trade.type === 'BUY'
@@ -398,12 +471,30 @@ export default function InvestmentsPage() {
                                 }`}>
                                   {trade.type === 'BUY' ? 'Vétel' : 'Eladás'}
                                 </Badge>
-                                <span className="text-[#f1f5f9] font-medium">{pos.ticker}</span>
-                                <span className="text-[#64748b]">{trade.quantity} × {formatCurrency(trade.price)}</span>
+                                <span className="text-foreground font-medium">{pos.ticker}</span>
+                                <span className="text-muted-foreground">
+                                  {trade.quantity} × {formatCurrency(trade.price, pos.currency)}
+                                  {pos.currency !== 'HUF' && (
+                                    <span className="ml-1 text-muted-foreground/60">
+                                      ({formatCurrency(toHuf(trade.price, pos.currency, fxRates))})
+                                    </span>
+                                  )}
+                                </span>
                               </div>
-                              <span className="text-[#64748b]">
-                                {format(new Date(trade.date), 'yyyy. MM. dd.', { locale: hu })}
-                              </span>
+                              <div className="flex items-center gap-3">
+                                <span className="text-muted-foreground">
+                                  {format(new Date(trade.date), 'yyyy. MM. dd.', { locale: hu })}
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    deleteInvestmentTrade(trade.id)
+                                    toast.success('Ügylet törölve')
+                                  }}
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded text-muted-foreground hover:text-red-500 hover:bg-red-50"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
                             </div>
                           ))
                         )}
@@ -419,35 +510,35 @@ export default function InvestmentsPage() {
         {/* ── Állampapír ──────────────────────────────────────────────────── */}
         <TabsContent value="allampapir" className="space-y-4 mt-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card className="bg-[#111118] border-[#1e1e2e]">
+            <Card className="bg-card border-border">
               <CardHeader>
-                <CardTitle className="text-base text-[#f1f5f9]">Magyar Állampapír</CardTitle>
+                <CardTitle className="text-base text-foreground">Magyar Állampapír</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 {allampapirAccounts.map((acc) => (
-                  <div key={acc.id} className="flex items-center justify-between p-3 bg-[#1e1e2e] rounded-lg">
-                    <span className="text-sm font-medium text-[#f1f5f9]">{acc.name}</span>
+                  <div key={acc.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                    <span className="text-sm font-medium text-foreground">{acc.name}</span>
                     <span className="text-sm font-bold text-amber-400">{formatCurrency(acc.balance)}</span>
                   </div>
                 ))}
-                <div className="border-t border-[#1e1e2e] pt-3 flex justify-between">
-                  <span className="text-sm text-[#64748b]">Összesen</span>
-                  <span className="text-sm font-bold text-[#f1f5f9]">{formatCurrency(allampapirTotal)}</span>
+                <div className="border-t border-border pt-3 flex justify-between">
+                  <span className="text-sm text-muted-foreground">Összesen</span>
+                  <span className="text-sm font-bold text-foreground">{formatCurrency(allampapirTotal)}</span>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-[#111118] border-[#1e1e2e]">
+            <Card className="bg-card border-border">
               <CardHeader>
-                <CardTitle className="text-base text-[#f1f5f9]">Hozam kalkulátor</CardTitle>
+                <CardTitle className="text-base text-foreground">Hozam kalkulátor</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <p className="text-xs text-[#64748b] mb-1.5">Éves kamatláb (%)</p>
+                  <p className="text-xs text-muted-foreground mb-1.5">Éves kamatláb (%)</p>
                   <Input
                     type="number" value={allampapirRate}
                     onChange={(e) => setAllampapirRate(e.target.value)}
-                    className="bg-[#1e1e2e] border-[#2e2e3e] text-[#f1f5f9]"
+                    className="bg-muted border-border text-foreground"
                     step="0.1" min="0"
                   />
                 </div>
@@ -456,14 +547,14 @@ export default function InvestmentsPage() {
                     ['Éves kamatbevétel', annualInterest],
                     ['Havi kamatbevétel', monthlyInterest],
                   ].map(([label, val]) => (
-                    <div key={label as string} className="flex justify-between items-center p-3 bg-[#1e1e2e] rounded-lg">
-                      <span className="text-sm text-[#64748b]">{label as string}</span>
+                    <div key={label as string} className="flex justify-between items-center p-3 bg-muted rounded-lg">
+                      <span className="text-sm text-muted-foreground">{label as string}</span>
                       <span className="text-sm font-bold text-green-400">{formatCurrency(val as number)}</span>
                     </div>
                   ))}
-                  <div className="flex justify-between items-center p-3 bg-slate-400/10 border border-slate-400/20 rounded-lg">
-                    <span className="text-sm text-slate-400">Napi kamatbevétel</span>
-                    <span className="text-sm font-bold text-slate-400">{formatCurrency(annualInterest / 365)}</span>
+                  <div className="flex justify-between items-center p-3 bg-muted border border-border rounded-lg">
+                    <span className="text-sm text-primary">Napi kamatbevétel</span>
+                    <span className="text-sm font-bold text-primary">{formatCurrency(annualInterest / 365)}</span>
                   </div>
                 </div>
               </CardContent>
@@ -475,14 +566,14 @@ export default function InvestmentsPage() {
         <TabsContent value="custom" className="space-y-4 mt-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-[#f1f5f9] font-medium">Egyéni portfólió nézetek</p>
-              <p className="text-xs text-[#64748b] mt-0.5">
+              <p className="text-sm text-foreground font-medium">Egyéni portfólió nézetek</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
                 Kombinálj több TBSZ és befektetési számlát egy összesítő nézetbe
               </p>
             </div>
             <Button
               onClick={() => { setEditingView(null); setCustomViewDialogOpen(true) }}
-              className="bg-slate-600 hover:bg-slate-500 text-white gap-2"
+              className="bg-primary hover:bg-primary/90 text-white gap-2"
               size="sm"
             >
               <Plus className="w-4 h-4" />
@@ -491,17 +582,17 @@ export default function InvestmentsPage() {
           </div>
 
           {customViews.length === 0 ? (
-            <Card className="bg-[#111118] border-[#1e1e2e] border-dashed">
+            <Card className="bg-card border-border border-dashed">
               <CardContent className="py-16 flex flex-col items-center gap-3 text-center">
-                <Eye className="w-10 h-10 text-[#2e2e3e]" />
-                <p className="text-[#64748b] text-sm">Még nincs egyéni nézeted</p>
-                <p className="text-[#64748b] text-xs max-w-xs">
+                <Eye className="w-10 h-10 text-muted-foreground/40" />
+                <p className="text-muted-foreground text-sm">Még nincs egyéni nézeted</p>
+                <p className="text-muted-foreground text-xs max-w-xs">
                   Hozz létre egy nézetet, hogy több TBSZ számlát egyszerre tekinthess át —
                   pl. kombinálj IBKR és Erste TBSZ számlákat.
                 </p>
                 <Button
                   onClick={() => { setEditingView(null); setCustomViewDialogOpen(true) }}
-                  className="bg-slate-600 hover:bg-slate-500 text-white gap-2 mt-2"
+                  className="bg-primary hover:bg-primary/90 text-white gap-2 mt-2"
                   size="sm"
                 >
                   <Plus className="w-4 h-4" />
@@ -560,14 +651,42 @@ interface EnrichedPosition {
   id: string
   accountId: string
   ticker: string
+  currency: string
   quantity: number
   averageBuyPrice: number
   livePrice: number
   marketValue: number
+  cost: number
   pnl: number
   pnlPercent: number
+  marketValueHuf: number
+  costHuf: number
+  pnlHuf: number
   meta: ReturnType<typeof getAssetMeta>
   q: QuoteResult | undefined
+}
+
+// ── Price cell with optional HUF equivalent ──────────────────────────────────
+
+function PriceCell({
+  amount, currency, fxRates, className = '',
+}: {
+  amount: number
+  currency: string
+  fxRates: ReturnType<typeof useFxRates>['rates']
+  className?: string
+}) {
+  if (currency === 'HUF') {
+    return <span className={className}>{formatCurrency(amount, 'HUF')}</span>
+  }
+  return (
+    <span className={className}>
+      {formatCurrency(amount, currency)}
+      <span className="block text-[10px] text-muted-foreground/70 tabular-nums">
+        {formatCurrency(toHuf(amount, currency, fxRates))}
+      </span>
+    </span>
+  )
 }
 
 // ── Portfolio Growth Chart ────────────────────────────────────────────────────
@@ -583,7 +702,87 @@ const GROWTH_RANGES = [
   { label: '5É',  range: '5y',  interval: '1mo' },
 ]
 
-function PortfolioGrowthChart({ positions }: { positions: { ticker: string; quantity: number }[] }) {
+function PortfolioAreaChart({ data }: { data: { date: string; value: number }[] }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const chartRef = useRef<IChartApi | null>(null)
+
+  useEffect(() => {
+    if (!containerRef.current) return
+
+    chartRef.current?.remove()
+    chartRef.current = null
+
+    const chart = createChart(containerRef.current, {
+      layout: {
+        background: { type: ColorType.Solid, color: '#18191D' },
+        textColor: '#71717A',
+        fontFamily: 'inherit',
+        fontSize: 11,
+      },
+      grid: {
+        vertLines: { visible: false },
+        horzLines: { color: '#27282E' },
+      },
+      rightPriceScale: {
+        borderVisible: false,
+        scaleMargins: { top: 0.1, bottom: 0.05 },
+      },
+      timeScale: { borderVisible: false, fixLeftEdge: true, fixRightEdge: true },
+      crosshair: {
+        horzLine: { visible: false, labelVisible: false },
+        vertLine: { color: '#444', labelVisible: false },
+      },
+      handleScroll: false,
+      handleScale: false,
+      width: containerRef.current.clientWidth,
+      height: 240,
+    })
+
+    chart.applyOptions({
+      localization: {
+        priceFormatter: (v: number) => {
+          if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(2)}M Ft`
+          if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K Ft`
+          return `${v.toFixed(0)} Ft`
+        },
+      },
+    })
+
+    const series = chart.addSeries(AreaSeries, {
+      lineColor: '#3B82F6',
+      topColor: 'rgba(59,130,246,0.25)',
+      bottomColor: 'rgba(59,130,246,0)',
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      crosshairMarkerBorderColor: '#18191D',
+      crosshairMarkerBorderWidth: 2,
+      crosshairMarkerRadius: 4,
+    })
+
+    series.setData(data.map(d => ({ time: d.date as Time, value: d.value })))
+    chart.timeScale().fitContent()
+    chartRef.current = chart
+
+    const ro = new ResizeObserver(() => {
+      if (containerRef.current && chartRef.current) {
+        chartRef.current.applyOptions({ width: containerRef.current.clientWidth })
+      }
+    })
+    ro.observe(containerRef.current)
+
+    return () => { ro.disconnect(); chart.remove(); chartRef.current = null }
+  }, [data])
+
+  return <div ref={containerRef} style={{ width: '100%', height: 240 }} />
+}
+
+function PortfolioGrowthChart({
+  positions, fxRates,
+}: {
+  positions: { ticker: string; quantity: number }[]
+  fxRates: ReturnType<typeof useFxRates>['rates']
+}) {
   const [selectedRange, setSelectedRange] = useState(GROWTH_RANGES[6])
   const [chartData, setChartData] = useState<{ date: string; value: number }[]>([])
   const [loading, setLoading] = useState(false)
@@ -595,6 +794,9 @@ function PortfolioGrowthChart({ positions }: { positions: { ticker: string; quan
     setLoading(true)
 
     const uniqueTickers = [...new Set(positions.map((p) => p.ticker))]
+    // Quantity and currency per ticker
+    const qtyByTicker: Record<string, number> = {}
+    for (const p of positions) qtyByTicker[p.ticker] = (qtyByTicker[p.ticker] ?? 0) + p.quantity
 
     Promise.all(
       uniqueTickers.map((ticker) =>
@@ -606,59 +808,37 @@ function PortfolioGrowthChart({ positions }: { positions: { ticker: string; quan
           .catch(() => ({ ticker, points: [] as { date: string; close: number }[] }))
       )
     ).then((results) => {
-      // Build fill-forward price maps per ticker
       const priceMaps: Record<string, Record<string, number>> = {}
       for (const { ticker, points } of results) {
-        const sorted = [...points].sort((a, b) => a.date.localeCompare(b.date))
         const map: Record<string, number> = {}
-        let last = 0
-        for (const p of sorted) {
-          last = p.close
-          map[p.date] = last
-        }
+        for (const p of [...points].sort((a, b) => a.date.localeCompare(b.date))) map[p.date] = p.close
         priceMaps[ticker] = map
       }
 
-      // Collect all dates across all tickers
       const allDates = [...new Set(results.flatMap(({ points }) => points.map((p) => p.date)))].sort()
-
-      // For each date compute portfolio value using fill-forward
       const lastPrice: Record<string, number> = {}
       const merged: { date: string; value: number }[] = []
 
       for (const date of allDates) {
-        let total = 0
-        let hasAny = false
-
-        for (const { ticker } of positions) {
+        let total = 0; let hasAny = false
+        for (const ticker of uniqueTickers) {
           const map = priceMaps[ticker] ?? {}
           if (map[date] != null) lastPrice[ticker] = map[date]
           if (lastPrice[ticker] != null) {
-            total += lastPrice[ticker] * positions
-              .filter((p) => p.ticker === ticker)
-              .reduce((s, p) => s + p.quantity, 0)
+            // Convert native price to HUF before aggregating across currencies
+            const currency = getAssetMeta(ticker).currency || 'HUF'
+            const priceHuf = toHuf(lastPrice[ticker], currency, fxRates)
+            total += priceHuf * (qtyByTicker[ticker] ?? 0)
             hasAny = true
           }
         }
-
         if (hasAny) merged.push({ date, value: Math.round(total) })
       }
 
       setChartData(merged)
     }).finally(() => setLoading(false))
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedRange.range, selectedRange.interval, posKey])
-
-  const dateFormatter = (d: string) => {
-    if (!d) return ''
-    if (selectedRange.range === '1d') return d.slice(11, 16)
-    if (['5d', '1mo', '3mo'].includes(selectedRange.range)) {
-      const dt = new Date(d)
-      return `${dt.getMonth() + 1}/${dt.getDate()}`
-    }
-    const dt = new Date(d)
-    return `${dt.getFullYear().toString().slice(2)}/${String(dt.getMonth() + 1).padStart(2, '0')}`
-  }
+  }, [selectedRange.range, selectedRange.interval, posKey, fxRates.EUR, fxRates.USD])
 
   const startValue = chartData[0]?.value ?? 0
   const endValue = chartData[chartData.length - 1]?.value ?? 0
@@ -667,12 +847,12 @@ function PortfolioGrowthChart({ positions }: { positions: { ticker: string; quan
   const isPositive = gain >= 0
 
   return (
-    <Card className="bg-[#111118] border-[#1e1e2e]">
+    <Card className="bg-card border-border">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <CardTitle className="text-base text-[#f1f5f9] flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-slate-400" />
+            <CardTitle className="text-base text-foreground flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-primary" />
               Portfólió növekedés
             </CardTitle>
             {chartData.length > 0 && (
@@ -683,7 +863,7 @@ function PortfolioGrowthChart({ positions }: { positions: { ticker: string; quan
                 <span className={`text-xs ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
                   ({isPositive ? '+' : ''}{gainPct.toFixed(2)}%)
                 </span>
-                <span className="text-xs text-[#64748b]">a kiválasztott időszakban</span>
+                <span className="text-xs text-muted-foreground">a kiválasztott időszakban</span>
               </div>
             )}
           </div>
@@ -694,8 +874,8 @@ function PortfolioGrowthChart({ positions }: { positions: { ticker: string; quan
                 onClick={() => setSelectedRange(r)}
                 className={`px-2 py-1 text-xs rounded transition-all ${
                   selectedRange.label === r.label
-                    ? 'bg-slate-600 text-white'
-                    : 'text-[#64748b] hover:text-[#f1f5f9] hover:bg-[#1e1e2e]'
+                    ? 'bg-primary text-white'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                 }`}
               >
                 {r.label}
@@ -704,56 +884,17 @@ function PortfolioGrowthChart({ positions }: { positions: { ticker: string; quan
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-0 pb-2">
         {loading ? (
           <div className="h-[240px] flex items-center justify-center">
-            <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+            <Loader2 className="w-5 h-5 animate-spin text-primary" />
           </div>
         ) : chartData.length === 0 ? (
-          <div className="h-[240px] flex items-center justify-center text-sm text-[#64748b]">
+          <div className="h-[240px] flex items-center justify-center text-sm text-muted-foreground">
             Nincs adat a kiválasztott időszakra
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={chartData} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
-              <defs>
-                <linearGradient id="portfolioGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#94a3b8" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="#94a3b8" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid stroke="#1e1e2e" strokeDasharray="3 3" />
-              <XAxis
-                dataKey="date"
-                tickFormatter={dateFormatter}
-                tick={{ fill: '#64748b', fontSize: 10 }}
-                axisLine={false}
-                tickLine={false}
-                interval="preserveStartEnd"
-              />
-              <YAxis
-                tick={{ fill: '#64748b', fontSize: 10 }}
-                axisLine={false}
-                tickLine={false}
-                tickFormatter={(v) => `${(v / 1_000_000).toFixed(1)}M`}
-                width={44}
-              />
-              <Tooltip
-                formatter={(v) => [formatCurrency(Number(v)), 'Érték']}
-                labelFormatter={(l) => String(l).slice(0, 10)}
-                contentStyle={{ backgroundColor: '#1e1e2e', border: '1px solid #2e2e3e', borderRadius: 8, color: '#f1f5f9', fontSize: 12 }}
-              />
-              <Area
-                type="monotone"
-                dataKey="value"
-                stroke="#94a3b8"
-                strokeWidth={2}
-                fill="url(#portfolioGrad)"
-                dot={false}
-                activeDot={{ r: 3, fill: '#94a3b8' }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          <PortfolioAreaChart data={chartData} />
         )}
       </CardContent>
     </Card>
@@ -774,15 +915,15 @@ function CustomViewCard({
   const viewAccounts = accounts.filter((a) => view.accountIds.includes(a.id))
   const viewPositions = enrichedPositions.filter((p) => view.accountIds.includes(p.accountId))
 
-  const totalValue = viewPositions.reduce((s, p) => s + p.marketValue, 0)
-  const totalCost  = viewPositions.reduce((s, p) => s + p.quantity * p.averageBuyPrice, 0)
+  const totalValue = viewPositions.reduce((s, p) => s + p.marketValueHuf, 0)
+  const totalCost  = viewPositions.reduce((s, p) => s + p.costHuf, 0)
   const totalPnl   = totalValue - totalCost
   const totalPnlPct = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0
 
   // Sector breakdown for this view
   const sectorMap: Record<string, number> = {}
   viewPositions.forEach((p) => {
-    sectorMap[p.meta.sector] = (sectorMap[p.meta.sector] ?? 0) + p.marketValue
+    sectorMap[p.meta.sector] = (sectorMap[p.meta.sector] ?? 0) + p.marketValueHuf
   })
   const sectorData = Object.entries(sectorMap)
     .map(([name, value]) => ({ name, value, pct: totalValue > 0 ? (value / totalValue) * 100 : 0 }))
@@ -792,17 +933,17 @@ function CustomViewCard({
   const COLORS = ['#94a3b8', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6']
 
   return (
-    <Card className="bg-[#111118] border-[#1e1e2e]">
+    <Card className="bg-card border-border">
       <CardHeader>
         <div className="flex items-start justify-between flex-wrap gap-3">
           <div>
-            <CardTitle className="text-base text-[#f1f5f9]">{view.name}</CardTitle>
+            <CardTitle className="text-base text-foreground">{view.name}</CardTitle>
             {view.description && (
-              <p className="text-xs text-[#64748b] mt-0.5">{view.description}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{view.description}</p>
             )}
             <div className="flex flex-wrap gap-1.5 mt-2">
               {viewAccounts.map((a) => (
-                <Badge key={a.id} className="text-[10px] bg-[#1e1e2e] text-[#64748b] border-[#2e2e3e] border">
+                <Badge key={a.id} className="text-[10px] bg-muted text-muted-foreground border-border border">
                   {a.name}
                 </Badge>
               ))}
@@ -810,11 +951,11 @@ function CustomViewCard({
           </div>
           <div className="flex items-center gap-1.5">
             <Button variant="outline" size="sm" onClick={onEdit}
-              className="border-[#2e2e3e] text-[#64748b] hover:text-[#f1f5f9] hover:bg-[#1e1e2e] h-7 w-7 p-0">
+              className="border-border text-muted-foreground hover:text-foreground hover:bg-muted h-7 w-7 p-0">
               <Pencil className="w-3.5 h-3.5" />
             </Button>
             <Button variant="outline" size="sm" onClick={onDelete}
-              className="border-[#2e2e3e] text-[#64748b] hover:text-red-400 hover:bg-red-500/10 h-7 w-7 p-0">
+              className="border-border text-muted-foreground hover:text-red-400 hover:bg-red-500/10 h-7 w-7 p-0">
               <Trash2 className="w-3.5 h-3.5" />
             </Button>
           </div>
@@ -822,18 +963,18 @@ function CustomViewCard({
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-3 gap-3 mb-4">
-          <div className="bg-[#1e1e2e] rounded-lg p-3">
-            <p className="text-xs text-[#64748b]">Összértéke</p>
-            <p className="text-base font-bold text-[#f1f5f9] mt-0.5">{formatCurrency(totalValue)}</p>
+          <div className="bg-muted rounded-lg p-3">
+            <p className="text-xs text-muted-foreground">Összértéke</p>
+            <p className="text-base font-bold text-foreground mt-0.5">{formatCurrency(totalValue)}</p>
           </div>
-          <div className="bg-[#1e1e2e] rounded-lg p-3">
-            <p className="text-xs text-[#64748b]">P&L</p>
+          <div className="bg-muted rounded-lg p-3">
+            <p className="text-xs text-muted-foreground">P&L</p>
             <p className={`text-base font-bold mt-0.5 ${totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
               {totalPnl >= 0 ? '+' : ''}{formatCurrency(totalPnl)}
             </p>
           </div>
-          <div className="bg-[#1e1e2e] rounded-lg p-3">
-            <p className="text-xs text-[#64748b]">Hozam</p>
+          <div className="bg-muted rounded-lg p-3">
+            <p className="text-xs text-muted-foreground">Hozam</p>
             <p className={`text-base font-bold mt-0.5 ${totalPnlPct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
               {totalPnlPct >= 0 ? '+' : ''}{totalPnlPct.toFixed(2)}%
             </p>
@@ -843,19 +984,19 @@ function CustomViewCard({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Positions */}
           <div className="space-y-1.5">
-            <p className="text-xs text-[#64748b] font-medium uppercase tracking-wide mb-2">Pozíciók</p>
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-2">Pozíciók</p>
             {viewPositions.length === 0 ? (
-              <p className="text-xs text-[#64748b]">Nincs pozíció</p>
+              <p className="text-xs text-muted-foreground">Nincs pozíció</p>
             ) : (
               viewPositions.map((pos) => (
                 <div key={pos.accountId + pos.ticker}
-                  className="flex items-center justify-between text-xs bg-[#1e1e2e] rounded-lg px-3 py-2">
+                  className="flex items-center justify-between text-xs bg-muted rounded-lg px-3 py-2">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-[#f1f5f9]">{pos.ticker}</span>
-                    <span className="text-[#64748b]">{pos.quantity} db</span>
+                    <span className="font-semibold text-foreground">{pos.ticker}</span>
+                    <span className="text-muted-foreground">{pos.quantity} db</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[#f1f5f9]">{formatCurrency(pos.marketValue)}</span>
+                    <span className="text-foreground">{formatCurrency(pos.marketValueHuf)}</span>
                     <span className={`${pos.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                       {pos.pnl >= 0 ? '+' : ''}{pos.pnlPercent.toFixed(1)}%
                     </span>
@@ -868,15 +1009,15 @@ function CustomViewCard({
           {/* Sector breakdown */}
           {sectorData.length > 0 && (
             <div className="space-y-1.5">
-              <p className="text-xs text-[#64748b] font-medium uppercase tracking-wide mb-2">Szektor bontás</p>
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-2">Szektor bontás</p>
               {sectorData.map((s, i) => (
                 <div key={s.name} className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i] }} />
-                  <span className="text-xs text-[#64748b] flex-1 truncate">{s.name}</span>
+                  <span className="text-xs text-muted-foreground flex-1 truncate">{s.name}</span>
                   <div className="w-20">
-                    <Progress value={s.pct} className="h-1 bg-[#2e2e3e]" />
+                    <Progress value={s.pct} className="h-1 bg-muted/50" />
                   </div>
-                  <span className="text-xs text-[#f1f5f9] w-8 text-right">{s.pct.toFixed(0)}%</span>
+                  <span className="text-xs text-foreground w-8 text-right">{s.pct.toFixed(0)}%</span>
                 </div>
               ))}
             </div>
@@ -892,7 +1033,7 @@ function CustomViewCard({
                   key={a.id}
                   variant="outline" size="sm"
                   onClick={() => onOpenDetail(a.id)}
-                  className="border-[#2e2e3e] text-[#64748b] hover:text-[#f1f5f9] hover:bg-[#1e1e2e] gap-1.5 h-7 text-xs"
+                  className="border-border text-muted-foreground hover:text-foreground hover:bg-muted gap-1.5 h-7 text-xs"
                 >
                   <BarChart2 className="w-3 h-3" />
                   {a.name} részletei

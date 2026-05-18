@@ -16,8 +16,8 @@ export function SetupGate({ children }: { children: React.ReactNode }) {
   if (!hydrated) {
     // Avoid hydration mismatch — show minimal loading until localStorage is read
     return (
-      <div className="fixed inset-0 bg-[#0a0a0f] flex items-center justify-center">
-        <div className="flex items-center gap-2 text-slate-400">
+      <div className="fixed inset-0 bg-background flex items-center justify-center">
+        <div className="flex items-center gap-2 text-primary">
           <Flame className="w-5 h-5 animate-pulse" />
           <span className="text-sm font-medium">PEFI betöltése…</span>
         </div>

@@ -16,7 +16,6 @@ import {
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
-import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useAppStore } from '@/lib/store'
 
@@ -37,15 +36,15 @@ function NavContent({ onClose }: { onClose?: () => void }) {
   return (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className="flex items-center gap-2 px-4 py-5 border-b border-[#1e1e2e]">
-        <div className="w-8 h-8 rounded-lg bg-slate-200 flex items-center justify-center">
-          <Flame className="w-5 h-5 text-[#111118]" />
+      <div className="flex items-center gap-3 px-5 py-6">
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center shadow-md">
+          <Flame className="w-5 h-5 text-white" />
         </div>
-        <span className="font-bold text-lg text-[#f1f5f9]">PEFI</span>
+        <span className="font-bold text-xl text-foreground tracking-tight">PEFI</span>
       </div>
 
       {/* Nav items */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      <nav className="flex-1 px-3 py-2 space-y-0.5">
         {navItems.map((item) => {
           const isActive =
             item.href === '/dashboard'
@@ -57,16 +56,16 @@ function NavContent({ onClose }: { onClose?: () => void }) {
               href={item.href}
               onClick={onClose}
               className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all',
+                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
                 isActive
-                  ? 'bg-slate-400/10 text-slate-400 border border-slate-400/20'
-                  : 'text-[#64748b] hover:text-[#f1f5f9] hover:bg-[#1e1e2e]'
+                  ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
               )}
             >
               <item.icon
                 className={cn(
                   'w-4 h-4 flex-shrink-0',
-                  isActive ? 'text-slate-400' : 'text-[#64748b]'
+                  isActive ? 'text-white' : 'text-muted-foreground/70'
                 )}
               />
               {item.label}
@@ -77,10 +76,10 @@ function NavContent({ onClose }: { onClose?: () => void }) {
 
       {/* User info */}
       {userName && (
-        <div className="px-3 py-4 border-t border-[#1e1e2e]">
-          <div className="flex items-center gap-3 px-2 py-2 rounded-lg">
+        <div className="px-3 py-4 border-t border-border">
+          <div className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-secondary transition-colors cursor-pointer">
             <Avatar className="w-8 h-8 flex-shrink-0">
-              <AvatarFallback className="bg-slate-600 text-white text-xs font-bold">
+              <AvatarFallback className="bg-gradient-to-br from-blue-500 to-blue-700 text-white text-xs font-bold">
                 {userName
                   .split(' ')
                   .map((n: string) => n[0])
@@ -89,7 +88,8 @@ function NavContent({ onClose }: { onClose?: () => void }) {
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0">
-              <p className="text-sm font-medium text-[#f1f5f9] truncate">{userName}</p>
+              <p className="text-sm font-semibold text-foreground truncate">{userName}</p>
+              <p className="text-xs text-muted-foreground">Fiók</p>
             </div>
           </div>
         </div>
@@ -100,7 +100,7 @@ function NavContent({ onClose }: { onClose?: () => void }) {
 
 export function Sidebar() {
   return (
-    <aside className="hidden md:flex flex-col w-56 bg-[#111118] border-r border-[#1e1e2e] h-screen sticky top-0 flex-shrink-0">
+    <aside className="hidden md:flex flex-col w-60 bg-card border-r border-border h-screen sticky top-0 flex-shrink-0 shadow-sm">
       <NavContent />
     </aside>
   )
@@ -112,13 +112,13 @@ export function MobileSidebar() {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger
-        className="md:hidden inline-flex items-center justify-center rounded-lg p-2 text-[#64748b] hover:text-[#f1f5f9] hover:bg-[#1e1e2e] transition-colors"
+        className="md:hidden inline-flex items-center justify-center rounded-xl p-2 text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
       >
         {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
       </SheetTrigger>
       <SheetContent
         side="left"
-        className="p-0 w-56 bg-[#111118] border-r border-[#1e1e2e]"
+        className="p-0 w-60 bg-card border-r border-border"
       >
         <NavContent onClose={() => setOpen(false)} />
       </SheetContent>

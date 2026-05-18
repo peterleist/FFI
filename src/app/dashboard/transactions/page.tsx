@@ -114,12 +114,12 @@ export default function TransactionsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-[#f1f5f9]">Tranzakciók</h1>
-          <p className="text-[#64748b] text-sm mt-0.5">{filtered.length} tranzakció</p>
+          <h1 className="text-2xl font-bold text-foreground">Tranzakciók</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">{filtered.length} tranzakció</p>
         </div>
         <Button
           onClick={openNew}
-          className="bg-slate-600 hover:bg-slate-500 text-white gap-2"
+          className="bg-primary hover:bg-primary/90 text-white gap-2"
         >
           <Plus className="w-4 h-4" />
           Új tranzakció
@@ -127,65 +127,65 @@ export default function TransactionsPage() {
       </div>
 
       {/* Filters */}
-      <Card className="bg-[#111118] border-[#1e1e2e]">
+      <Card className="bg-card border-border">
         <CardContent className="p-4">
           <div className="flex flex-wrap gap-3">
             <div className="relative flex-1 min-w-40">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748b]" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Keresés..."
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-                className="pl-9 bg-[#1e1e2e] border-[#2e2e3e] text-[#f1f5f9] placeholder:text-[#64748b]"
+                className="pl-9 bg-muted border-border text-foreground placeholder:text-muted-foreground"
               />
             </div>
             <Select value={selectedMonth} onValueChange={(v: string) => { setSelectedMonth(v); setPage(1) }}>
-              <SelectTrigger className="w-44 bg-[#1e1e2e] border-[#2e2e3e] text-[#f1f5f9]">
+              <SelectTrigger className="w-44 bg-muted border-border text-foreground">
                 <SelectValue placeholder="Hónap" />
               </SelectTrigger>
-              <SelectContent className="bg-[#111118] border-[#1e1e2e]">
-                <SelectItem value="all" className="text-[#f1f5f9]">Összes hónap</SelectItem>
+              <SelectContent className="bg-card border-border">
+                <SelectItem value="all" className="text-foreground">Összes hónap</SelectItem>
                 {MONTH_OPTIONS.map((m) => (
-                  <SelectItem key={m.value} value={m.value} className="text-[#f1f5f9]">
+                  <SelectItem key={m.value} value={m.value} className="text-foreground">
                     {m.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <Select value={selectedAccount} onValueChange={(v: string) => { setSelectedAccount(v); setPage(1) }}>
-              <SelectTrigger className="w-44 bg-[#1e1e2e] border-[#2e2e3e] text-[#f1f5f9]">
+              <SelectTrigger className="w-44 bg-muted border-border text-foreground">
                 <SelectValue placeholder="Számla" />
               </SelectTrigger>
-              <SelectContent className="bg-[#111118] border-[#1e1e2e]">
-                <SelectItem value="all" className="text-[#f1f5f9]">Összes számla</SelectItem>
+              <SelectContent className="bg-card border-border">
+                <SelectItem value="all" className="text-foreground">Összes számla</SelectItem>
                 {accounts.map((a) => (
-                  <SelectItem key={a.id} value={a.id} className="text-[#f1f5f9]">
+                  <SelectItem key={a.id} value={a.id} className="text-foreground">
                     {a.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <Select value={selectedCategory} onValueChange={(v: string) => { setSelectedCategory(v); setPage(1) }}>
-              <SelectTrigger className="w-44 bg-[#1e1e2e] border-[#2e2e3e] text-[#f1f5f9]">
+              <SelectTrigger className="w-44 bg-muted border-border text-foreground">
                 <SelectValue placeholder="Kategória" />
               </SelectTrigger>
-              <SelectContent className="bg-[#111118] border-[#1e1e2e]">
-                <SelectItem value="all" className="text-[#f1f5f9]">Összes kategória</SelectItem>
+              <SelectContent className="bg-card border-border">
+                <SelectItem value="all" className="text-foreground">Összes kategória</SelectItem>
                 {categories.map((c) => (
-                  <SelectItem key={c.id} value={c.id} className="text-[#f1f5f9]">
+                  <SelectItem key={c.id} value={c.id} className="text-foreground">
                     {c.icon} {c.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <Select value={selectedStatus} onValueChange={(v: string) => { setSelectedStatus(v); setPage(1) }}>
-              <SelectTrigger className="w-36 bg-[#1e1e2e] border-[#2e2e3e] text-[#f1f5f9]">
+              <SelectTrigger className="w-36 bg-muted border-border text-foreground">
                 <SelectValue placeholder="Státusz" />
               </SelectTrigger>
-              <SelectContent className="bg-[#111118] border-[#1e1e2e]">
-                <SelectItem value="all" className="text-[#f1f5f9]">Minden</SelectItem>
-                <SelectItem value={TransactionStatus.CONFIRMED} className="text-[#f1f5f9]">Jóváhagyott</SelectItem>
-                <SelectItem value={TransactionStatus.PENDING} className="text-[#f1f5f9]">Függőben</SelectItem>
+              <SelectContent className="bg-card border-border">
+                <SelectItem value="all" className="text-foreground">Minden</SelectItem>
+                <SelectItem value={TransactionStatus.CONFIRMED} className="text-foreground">Jóváhagyott</SelectItem>
+                <SelectItem value={TransactionStatus.PENDING} className="text-foreground">Függőben</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -194,21 +194,21 @@ export default function TransactionsPage() {
 
       {/* Totals */}
       <div className="grid grid-cols-3 gap-4">
-        <Card className="bg-[#111118] border-[#1e1e2e]">
+        <Card className="bg-card border-border">
           <CardContent className="p-4">
-            <p className="text-xs text-[#64748b]">Bevétel</p>
+            <p className="text-xs text-muted-foreground">Bevétel</p>
             <p className="text-lg font-bold text-green-400">{formatCurrency(totalIncome)}</p>
           </CardContent>
         </Card>
-        <Card className="bg-[#111118] border-[#1e1e2e]">
+        <Card className="bg-card border-border">
           <CardContent className="p-4">
-            <p className="text-xs text-[#64748b]">Kiadás</p>
+            <p className="text-xs text-muted-foreground">Kiadás</p>
             <p className="text-lg font-bold text-red-400">{formatCurrency(totalExpense)}</p>
           </CardContent>
         </Card>
-        <Card className="bg-[#111118] border-[#1e1e2e]">
+        <Card className="bg-card border-border">
           <CardContent className="p-4">
-            <p className="text-xs text-[#64748b]">Egyenleg</p>
+            <p className="text-xs text-muted-foreground">Egyenleg</p>
             <p className={`text-lg font-bold ${net >= 0 ? 'text-green-400' : 'text-red-400'}`}>
               {net >= 0 ? '+' : ''}{formatCurrency(net)}
             </p>
@@ -217,42 +217,42 @@ export default function TransactionsPage() {
       </div>
 
       {/* Table */}
-      <Card className="bg-[#111118] border-[#1e1e2e]">
+      <Card className="bg-card border-border">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
-              <TableRow className="border-[#1e1e2e] hover:bg-transparent">
-                <TableHead className="text-[#64748b]">Dátum</TableHead>
-                <TableHead className="text-[#64748b]">Leírás</TableHead>
-                <TableHead className="text-[#64748b]">Kategória</TableHead>
-                <TableHead className="text-[#64748b]">Számla</TableHead>
-                <TableHead className="text-[#64748b] text-right">Összeg</TableHead>
-                <TableHead className="text-[#64748b]">Státusz</TableHead>
-                <TableHead className="text-[#64748b] w-20"></TableHead>
+              <TableRow className="border-border hover:bg-transparent">
+                <TableHead className="text-muted-foreground">Dátum</TableHead>
+                <TableHead className="text-muted-foreground">Leírás</TableHead>
+                <TableHead className="text-muted-foreground">Kategória</TableHead>
+                <TableHead className="text-muted-foreground">Számla</TableHead>
+                <TableHead className="text-muted-foreground text-right">Összeg</TableHead>
+                <TableHead className="text-muted-foreground">Státusz</TableHead>
+                <TableHead className="text-muted-foreground w-20"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {paged.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-[#64748b] py-12">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-12">
                     Nincs tranzakció a megadott szűrőkkel
                   </TableCell>
                 </TableRow>
               ) : (
                 paged.map((tx) => (
-                  <TableRow key={tx.id} className="border-[#1e1e2e] hover:bg-[#1e1e2e]/50">
-                    <TableCell className="text-[#64748b] text-sm">
+                  <TableRow key={tx.id} className="border-border hover:bg-muted/50">
+                    <TableCell className="text-muted-foreground text-sm">
                       {format(new Date(tx.date), 'MMM d.', { locale: hu })}
                     </TableCell>
-                    <TableCell className="text-[#f1f5f9] text-sm font-medium max-w-48 truncate">
+                    <TableCell className="text-foreground text-sm font-medium max-w-48 truncate">
                       {tx.description}
                     </TableCell>
                     <TableCell>
-                      <span className="text-sm text-[#64748b]">
+                      <span className="text-sm text-muted-foreground">
                         {getCategoryIcon(tx.categoryId)} {getCategoryName(tx.categoryId)}
                       </span>
                     </TableCell>
-                    <TableCell className="text-sm text-[#64748b]">
+                    <TableCell className="text-sm text-muted-foreground">
                       {getAccountName(tx.accountId)}
                     </TableCell>
                     <TableCell
@@ -289,7 +289,7 @@ export default function TransactionsPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 text-[#64748b] hover:text-[#f1f5f9] hover:bg-[#1e1e2e]"
+                          className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
                           onClick={() => openEdit(tx)}
                         >
                           <Pencil className="w-3.5 h-3.5" />
@@ -297,7 +297,7 @@ export default function TransactionsPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 text-[#64748b] hover:text-red-400 hover:bg-red-500/10"
+                          className="h-7 w-7 text-muted-foreground hover:text-red-400 hover:bg-red-500/10"
                           onClick={() => handleDelete(tx.id)}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -313,8 +313,8 @@ export default function TransactionsPage() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-[#1e1e2e]">
-            <p className="text-sm text-[#64748b]">
+          <div className="flex items-center justify-between px-4 py-3 border-t border-border">
+            <p className="text-sm text-muted-foreground">
               {(page - 1) * ITEMS_PER_PAGE + 1}–{Math.min(page * ITEMS_PER_PAGE, filtered.length)} / {filtered.length}
             </p>
             <div className="flex gap-2">
@@ -323,7 +323,7 @@ export default function TransactionsPage() {
                 size="sm"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="border-[#2e2e3e] text-[#64748b] hover:text-[#f1f5f9] hover:bg-[#1e1e2e]"
+                className="border-border text-muted-foreground hover:text-foreground hover:bg-muted"
               >
                 Előző
               </Button>
@@ -332,7 +332,7 @@ export default function TransactionsPage() {
                 size="sm"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="border-[#2e2e3e] text-[#64748b] hover:text-[#f1f5f9] hover:bg-[#1e1e2e]"
+                className="border-border text-muted-foreground hover:text-foreground hover:bg-muted"
               >
                 Következő
               </Button>

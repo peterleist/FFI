@@ -119,6 +119,8 @@ interface AppState {
     trade: InvestmentTrade,
     positionUpdate: { positionId: string; quantity: number; averageBuyPrice: number }
   ) => void
+  deleteInvestmentTrade: (tradeId: string) => void
+  deleteInvestmentPosition: (positionId: string) => void
 
   // ── Import batch ─────────────────────────────────────────────────────────────
   setPendingImportBatch: (transactions: Transaction[]) => void
@@ -339,6 +341,43 @@ export const useAppStore = create<AppState>()(
               : p
           ),
         })),
+      deleteInvestmentPosition: (positionId) =>
+        set((s) => ({
+          investmentPositions: s.investmentPositions.filter((p) => p.id !== positionId),
+          investmentTrades: s.investmentTrades.filter((t) => t.positionId !== positionId),
+        })),
+      deleteInvestmentTrade: (tradeId) =>
+        set((s) => {
+          const trade = s.investmentTrades.find((t) => t.id === tradeId)
+          if (!trade) return s
+
+          const remaining = s.investmentTrades
+            .filter((t) => t.id !== tradeId && t.positionId === trade.positionId)
+            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+          // Replay remaining trades to recalculate quantity and average buy price
+          let qty = 0
+          let totalCost = 0
+          for (const t of remaining) {
+            if (t.type === 'BUY') {
+              totalCost += t.quantity * t.price
+              qty += t.quantity
+            } else {
+              const pct = qty > 0 ? t.quantity / qty : 0
+              totalCost = Math.max(0, totalCost - totalCost * pct)
+              qty = Math.max(0, qty - t.quantity)
+            }
+          }
+
+          return {
+            investmentTrades: s.investmentTrades.filter((t) => t.id !== tradeId),
+            investmentPositions: s.investmentPositions.map((p) =>
+              p.id === trade.positionId
+                ? { ...p, quantity: qty, averageBuyPrice: qty > 0 ? totalCost / qty : 0, updatedAt: new Date() }
+                : p
+            ),
+          }
+        }),
 
       // ── Import batch ──────────────────────────────────────────────────────────
       setPendingImportBatch: (transactions) =>
