@@ -26,8 +26,13 @@ import { cn, formatCurrency } from '@/lib/utils'
 import { useAppStore } from '@/lib/store'
 import { AccountType, TradeType, type InvestmentPosition, type InvestmentTrade } from '@/lib/types'
 import { toast } from 'sonner'
+import { getAssetMeta } from '@/lib/market-data'
 
 const COMMON_TICKERS = ['VWCE', 'CSPX', 'SPY', 'QQQ', 'IWDA', 'EIMI', 'OTP', 'MOL', 'RICHTER', 'MTELEKOM']
+const CURRENCIES = ['HUF', 'EUR', 'USD'] as const
+type Currency = typeof CURRENCIES[number]
+
+const CURRENCY_SYMBOLS: Record<Currency, string> = { HUF: 'Ft', EUR: '€', USD: '$' }
 
 interface TradeDialogProps {
   open: boolean
@@ -44,6 +49,7 @@ export function TradeDialog({ open, onOpenChange, preselectedAccountId }: TradeD
   const [tradeType, setTradeType] = useState<TradeType>(TradeType.BUY)
   const [ticker, setTicker] = useState('')
   const [tickerName, setTickerName] = useState('')
+  const [currency, setCurrency] = useState<Currency>('HUF')
   const [quantity, setQuantity] = useState('')
   const [price, setPrice] = useState('')
   const [fee, setFee] = useState('0')
@@ -122,7 +128,7 @@ export function TradeDialog({ open, onOpenChange, preselectedAccountId }: TradeD
         quantity: qty,
         averageBuyPrice: prc,
         currentPrice: prc,
-        currency: 'HUF',
+        currency,
         tags: [],
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -157,6 +163,7 @@ export function TradeDialog({ open, onOpenChange, preselectedAccountId }: TradeD
 
     setTicker('')
     setTickerName('')
+    setCurrency('HUF')
     setQuantity('')
     setPrice('')
     setFee('0')
@@ -227,8 +234,13 @@ export function TradeDialog({ open, onOpenChange, preselectedAccountId }: TradeD
               placeholder="pl. VWCE"
               value={ticker}
               onChange={(e) => {
-                setTicker(e.target.value.toUpperCase())
+                const t = e.target.value.toUpperCase()
+                setTicker(t)
                 setShowSuggestions(true)
+                const meta = getAssetMeta(t)
+                if (meta.currency && CURRENCIES.includes(meta.currency as Currency)) {
+                  setCurrency(meta.currency as Currency)
+                }
               }}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
               className="bg-muted border-border text-foreground"
@@ -240,7 +252,14 @@ export function TradeDialog({ open, onOpenChange, preselectedAccountId }: TradeD
                     key={s}
                     type="button"
                     className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-muted"
-                    onClick={() => { setTicker(s); setShowSuggestions(false) }}
+                    onClick={() => {
+                      setTicker(s)
+                      setShowSuggestions(false)
+                      const meta = getAssetMeta(s)
+                      if (meta.currency && CURRENCIES.includes(meta.currency as Currency)) {
+                        setCurrency(meta.currency as Currency)
+                      }
+                    }}
                   >
                     {s}
                   </button>
@@ -260,6 +279,28 @@ export function TradeDialog({ open, onOpenChange, preselectedAccountId }: TradeD
             />
           </div>
 
+          {/* Currency */}
+          <div>
+            <Label className="text-muted-foreground text-xs mb-1.5 block">Deviza</Label>
+            <div className="flex gap-1 bg-muted p-1 rounded-lg">
+              {CURRENCIES.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setCurrency(c)}
+                  className={cn(
+                    'flex-1 py-1.5 px-2 rounded-md text-sm font-medium transition-all',
+                    currency === c
+                      ? 'bg-card text-foreground shadow-sm border border-border'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Quantity & Price */}
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -275,7 +316,9 @@ export function TradeDialog({ open, onOpenChange, preselectedAccountId }: TradeD
               />
             </div>
             <div>
-              <Label className="text-muted-foreground text-xs mb-1.5 block">Egységár (Ft) *</Label>
+              <Label className="text-muted-foreground text-xs mb-1.5 block">
+                Egységár ({CURRENCY_SYMBOLS[currency]}) *
+              </Label>
               <Input
                 type="number"
                 placeholder="0"
@@ -283,6 +326,7 @@ export function TradeDialog({ open, onOpenChange, preselectedAccountId }: TradeD
                 onChange={(e) => setPrice(e.target.value)}
                 className="bg-muted border-border text-foreground"
                 min="0"
+                step={currency === 'HUF' ? '1' : '0.01'}
               />
             </div>
           </div>
@@ -292,14 +336,16 @@ export function TradeDialog({ open, onOpenChange, preselectedAccountId }: TradeD
             <div className="bg-muted rounded-lg px-3 py-2 flex justify-between">
               <span className="text-xs text-muted-foreground">Összérték</span>
               <span className="text-sm font-semibold text-foreground">
-                {formatCurrency(totalValue)}
+                {formatCurrency(totalValue, currency)}
               </span>
             </div>
           )}
 
           {/* Fee */}
           <div>
-            <Label className="text-muted-foreground text-xs mb-1.5 block">Jutalék (Ft)</Label>
+            <Label className="text-muted-foreground text-xs mb-1.5 block">
+              Jutalék ({CURRENCY_SYMBOLS[currency]})
+            </Label>
             <Input
               type="number"
               placeholder="0"

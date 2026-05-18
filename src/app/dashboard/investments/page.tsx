@@ -36,7 +36,7 @@ function tbszProgress(y: number) { return Math.min(((CURRENT_YEAR - y) / 5) * 10
 export default function InvestmentsPage() {
   const {
     accounts, investmentPositions, investmentTrades, updateAccount,
-    customViews, deleteCustomView,
+    customViews, deleteCustomView, deleteInvestmentTrade, deleteInvestmentPosition,
   } = useAppStore()
 
   const [tradeDialogOpen, setTradeDialogOpen] = useState(false)
@@ -236,11 +236,12 @@ export default function InvestmentsPage() {
                       <TableHead className="text-muted-foreground text-xs text-right">Aktuális</TableHead>
                       <TableHead className="text-muted-foreground text-xs text-right">Érték</TableHead>
                       <TableHead className="text-muted-foreground text-xs text-right">P&L</TableHead>
+                      <TableHead className="w-8" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {enrichedPositions.map((pos) => (
-                      <TableRow key={pos.id} className="border-border hover:bg-muted/50">
+                      <TableRow key={pos.id} className="border-border hover:bg-muted/50 group">
                         <TableCell>
                           <p className="text-sm font-semibold text-foreground">{pos.ticker}</p>
                           <p className="text-xs text-muted-foreground max-w-28 truncate">{pos.meta.name}</p>
@@ -250,11 +251,11 @@ export default function InvestmentsPage() {
                         </TableCell>
                         <TableCell className="text-right text-sm text-foreground">{pos.quantity}</TableCell>
                         <TableCell className="text-right text-sm text-muted-foreground">
-                          {formatCurrency(pos.averageBuyPrice)}
+                          {formatCurrency(pos.averageBuyPrice, pos.currency)}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex flex-col items-end">
-                            <span className="text-sm text-foreground">{formatCurrency(pos.livePrice)}</span>
+                            <span className="text-sm text-foreground">{formatCurrency(pos.livePrice, pos.currency)}</span>
                             {pos.q?.changePercent != null && (
                               <span className={`text-[10px] ${pos.q.changePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                 {pos.q.changePercent >= 0 ? '+' : ''}{pos.q.changePercent.toFixed(2)}%
@@ -263,13 +264,24 @@ export default function InvestmentsPage() {
                           </div>
                         </TableCell>
                         <TableCell className="text-right text-sm font-medium text-foreground">
-                          {formatCurrency(pos.marketValue)}
+                          {formatCurrency(pos.marketValue, pos.currency)}
                         </TableCell>
                         <TableCell className="text-right">
                           <div className={`text-sm font-semibold ${pos.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {pos.pnl >= 0 ? '+' : ''}{formatCurrency(pos.pnl)}
+                            {pos.pnl >= 0 ? '+' : ''}{formatCurrency(pos.pnl, pos.currency)}
                             <p className="text-[10px] font-normal">({pos.pnlPercent >= 0 ? '+' : ''}{pos.pnlPercent.toFixed(1)}%)</p>
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          <button
+                            onClick={() => {
+                              deleteInvestmentPosition(pos.id)
+                              toast.success(`${pos.ticker} törölve`)
+                            }}
+                            className="w-6 h-6 flex items-center justify-center rounded text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -343,11 +355,12 @@ export default function InvestmentsPage() {
                           <TableHead className="text-muted-foreground text-xs text-right">Átl. ár</TableHead>
                           <TableHead className="text-muted-foreground text-xs text-right">Live ár</TableHead>
                           <TableHead className="text-muted-foreground text-xs text-right">P&L</TableHead>
+                          <TableHead className="w-8" />
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {positions.map((pos) => (
-                          <TableRow key={pos.id} className="border-border hover:bg-muted/50">
+                          <TableRow key={pos.id} className="border-border hover:bg-muted/50 group">
                             <TableCell>
                               <p className="text-sm font-semibold text-foreground">{pos.ticker}</p>
                               <p className="text-xs text-muted-foreground">{pos.meta.name}</p>
@@ -357,11 +370,11 @@ export default function InvestmentsPage() {
                             </TableCell>
                             <TableCell className="text-right text-sm text-foreground">{pos.quantity}</TableCell>
                             <TableCell className="text-right text-sm text-muted-foreground">
-                              {formatCurrency(pos.averageBuyPrice)}
+                              {formatCurrency(pos.averageBuyPrice, pos.currency)}
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex flex-col items-end">
-                                <span className="text-sm text-foreground font-medium">{formatCurrency(pos.livePrice)}</span>
+                                <span className="text-sm text-foreground font-medium">{formatCurrency(pos.livePrice, pos.currency)}</span>
                                 {pos.q?.changePercent != null && (
                                   <span className={`text-[10px] ${pos.q.changePercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                     {pos.q.changePercent >= 0 ? '+' : ''}{pos.q.changePercent.toFixed(2)}% ma
@@ -371,9 +384,20 @@ export default function InvestmentsPage() {
                             </TableCell>
                             <TableCell className="text-right">
                               <span className={`text-sm font-semibold ${pos.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                {pos.pnl >= 0 ? '+' : ''}{formatCurrency(pos.pnl)}
+                                {pos.pnl >= 0 ? '+' : ''}{formatCurrency(pos.pnl, pos.currency)}
                                 <span className="text-[10px] font-normal ml-1">({pos.pnlPercent >= 0 ? '+' : ''}{pos.pnlPercent.toFixed(1)}%)</span>
                               </span>
+                            </TableCell>
+                            <TableCell>
+                              <button
+                                onClick={() => {
+                                  deleteInvestmentPosition(pos.id)
+                                  toast.success(`${pos.ticker} törölve`)
+                                }}
+                                className="w-6 h-6 flex items-center justify-center rounded text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -389,7 +413,7 @@ export default function InvestmentsPage() {
                       <div className="space-y-1.5">
                         {positions.flatMap((pos) =>
                           getTradesForPosition(pos.id).map((trade) => (
-                            <div key={trade.id} className="flex items-center justify-between text-xs bg-muted rounded-lg px-3 py-2">
+                            <div key={trade.id} className="flex items-center justify-between text-xs bg-muted rounded-lg px-3 py-2 group">
                               <div className="flex items-center gap-2">
                                 <Badge className={`text-[10px] px-1.5 py-0 border ${
                                   trade.type === 'BUY'
@@ -399,11 +423,22 @@ export default function InvestmentsPage() {
                                   {trade.type === 'BUY' ? 'Vétel' : 'Eladás'}
                                 </Badge>
                                 <span className="text-foreground font-medium">{pos.ticker}</span>
-                                <span className="text-muted-foreground">{trade.quantity} × {formatCurrency(trade.price)}</span>
+                                <span className="text-muted-foreground">{trade.quantity} × {formatCurrency(trade.price, pos.currency)}</span>
                               </div>
-                              <span className="text-muted-foreground">
-                                {format(new Date(trade.date), 'yyyy. MM. dd.', { locale: hu })}
-                              </span>
+                              <div className="flex items-center gap-3">
+                                <span className="text-muted-foreground">
+                                  {format(new Date(trade.date), 'yyyy. MM. dd.', { locale: hu })}
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    deleteInvestmentTrade(trade.id)
+                                    toast.success('Ügylet törölve')
+                                  }}
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded text-muted-foreground hover:text-red-500 hover:bg-red-50"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
                             </div>
                           ))
                         )}
@@ -560,6 +595,7 @@ interface EnrichedPosition {
   id: string
   accountId: string
   ticker: string
+  currency: string
   quantity: number
   averageBuyPrice: number
   livePrice: number
@@ -855,7 +891,7 @@ function CustomViewCard({
                     <span className="text-muted-foreground">{pos.quantity} db</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-foreground">{formatCurrency(pos.marketValue)}</span>
+                    <span className="text-foreground">{formatCurrency(pos.marketValue, pos.currency)}</span>
                     <span className={`${pos.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                       {pos.pnl >= 0 ? '+' : ''}{pos.pnlPercent.toFixed(1)}%
                     </span>

@@ -37,7 +37,7 @@ function NavContent({ onClose }: { onClose?: () => void }) {
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 py-6">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-600 to-purple-800 flex items-center justify-center shadow-md">
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center shadow-md">
           <Flame className="w-5 h-5 text-white" />
         </div>
         <span className="font-bold text-xl text-foreground tracking-tight">PEFI</span>
@@ -58,7 +58,7 @@ function NavContent({ onClose }: { onClose?: () => void }) {
               className={cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all',
                 isActive
-                  ? 'bg-gradient-to-r from-violet-600 to-purple-700 text-white shadow-sm'
+                  ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-sm'
                   : 'text-muted-foreground hover:text-foreground hover:bg-secondary'
               )}
             >
@@ -79,7 +79,7 @@ function NavContent({ onClose }: { onClose?: () => void }) {
         <div className="px-3 py-4 border-t border-border">
           <div className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-secondary transition-colors cursor-pointer">
             <Avatar className="w-8 h-8 flex-shrink-0">
-              <AvatarFallback className="bg-gradient-to-br from-violet-500 to-purple-700 text-white text-xs font-bold">
+              <AvatarFallback className="bg-gradient-to-br from-blue-500 to-blue-700 text-white text-xs font-bold">
                 {userName
                   .split(' ')
                   .map((n: string) => n[0])

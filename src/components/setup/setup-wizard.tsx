@@ -207,7 +207,7 @@ export function SetupWizard() {
         <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-2xl">
 
           {/* Header strip */}
-          <div className="bg-gradient-to-r from-violet-600 to-purple-700 px-6 py-4 flex items-center justify-between">
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="w-7 h-7 rounded-lg bg-card/20 flex items-center justify-center">
                 <Flame className="w-4 h-4 text-white" />

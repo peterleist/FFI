@@ -23,11 +23,11 @@ export function UserBar() {
       <div className="flex items-center gap-3">
         <button className="w-8 h-8 rounded-xl bg-muted flex items-center justify-center hover:bg-secondary transition-colors relative">
           <Bell className="w-4 h-4 text-primary" />
-          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-violet-600 rounded-full" />
+          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-blue-600 rounded-full" />
         </button>
         {userName && (
           <Avatar className="w-8 h-8">
-            <AvatarFallback className="bg-gradient-to-br from-violet-500 to-purple-700 text-white text-xs font-bold">
+            <AvatarFallback className="bg-gradient-to-br from-blue-500 to-blue-700 text-white text-xs font-bold">
               {userName
                 .split(' ')
                 .map((n: string) => n[0])

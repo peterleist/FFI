@@ -30,6 +30,7 @@ import { AccountType, CategoryType, TransactionStatus } from '@/lib/types'
 import { formatCurrency } from '@/lib/utils'
 import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns'
 import { hu } from 'date-fns/locale'
+import { MarketWidget } from '@/components/market-widget'
 
 const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   [AccountType.BANK]: 'Bankszámla',
@@ -40,11 +41,11 @@ const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
 }
 
 const ACCOUNT_TYPE_COLORS: Record<AccountType, string> = {
-  [AccountType.BANK]: 'bg-violet-100 text-violet-700 border-violet-200',
+  [AccountType.BANK]: 'bg-blue-100 text-blue-700 border-blue-200',
   [AccountType.CASH]: 'bg-emerald-100 text-emerald-700 border-emerald-200',
   [AccountType.TBSZ]: 'bg-amber-100 text-amber-700 border-amber-200',
   [AccountType.ALLAMPAPIR]: 'bg-blue-100 text-blue-700 border-blue-200',
-  [AccountType.BROKER]: 'bg-purple-100 text-purple-700 border-purple-200',
+  [AccountType.BROKER]: 'bg-indigo-100 text-indigo-700 border-indigo-200',
 }
 
 function StatCard({
@@ -60,26 +61,26 @@ function StatCard({
   icon: React.ElementType
   trend?: number
   trendLabel?: string
-  accent?: 'green' | 'red' | 'purple' | 'default'
+  accent?: 'green' | 'red' | 'blue' | 'default'
 }) {
   const isPositive = trend !== undefined && trend >= 0
   const valueColors = {
     green: 'text-emerald-600',
     red: 'text-red-500',
-    purple: 'text-violet-700',
+    blue: 'text-blue-700',
     default: 'text-foreground',
   }
   const iconBg = {
     green: 'bg-emerald-100',
     red: 'bg-red-100',
-    purple: 'bg-violet-100',
+    blue: 'bg-blue-100',
     default: 'bg-secondary',
   }
   const iconColor = {
     green: 'text-emerald-600',
     red: 'text-red-500',
-    purple: 'text-violet-600',
-    default: 'text-violet-600',
+    blue: 'text-blue-600',
+    default: 'text-blue-600',
   }
   const a = accent ?? 'default'
 
@@ -221,7 +222,7 @@ export default function DashboardPage() {
       <div
         className="rounded-2xl p-6 text-white relative overflow-hidden"
         style={{
-          background: 'linear-gradient(135deg, #2D1B69 0%, #4C1D95 45%, #6D28D9 100%)',
+          background: 'linear-gradient(135deg, #0F172A 0%, #1E3A8A 45%, #1D4ED8 100%)',
         }}
       >
         {/* Decorative circles */}
@@ -246,7 +247,7 @@ export default function DashboardPage() {
               <p className="text-2xl font-bold text-white/90">{fireProgress.toFixed(1)}%</p>
               <div className="w-24 h-1.5 bg-card/20 rounded-full mt-1.5 ml-auto">
                 <div
-                  className="h-full bg-gradient-to-r from-violet-300 to-white rounded-full"
+                  className="h-full bg-gradient-to-r from-blue-300 to-white rounded-full"
                   style={{ width: `${fireProgress}%` }}
                 />
               </div>
@@ -279,7 +280,7 @@ export default function DashboardPage() {
           icon={Wallet}
           trend={2.4}
           trendLabel="+2.4%"
-          accent="purple"
+          accent="blue"
         />
         <StatCard
           title="Havi Kiadás"
@@ -299,9 +300,12 @@ export default function DashboardPage() {
           icon={Flame}
           trend={0.1}
           trendLabel="+0.1%"
-          accent="purple"
+          accent="blue"
         />
       </div>
+
+      {/* Market chart widget */}
+      <MarketWidget />
 
       {/* Middle row */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
@@ -342,7 +346,7 @@ export default function DashboardPage() {
         <Card className="bg-card border-border shadow-sm">
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <CardTitle className="text-base font-semibold text-foreground">Számlák</CardTitle>
-            <button className="text-xs text-violet-600 font-medium hover:text-violet-800">
+            <button className="text-xs text-blue-600 font-medium hover:text-blue-800">
               Összes
             </button>
           </CardHeader>
@@ -368,7 +372,7 @@ export default function DashboardPage() {
             ))}
             <div className="border-t border-border pt-3 flex justify-between">
               <span className="text-sm text-muted-foreground font-medium">Összesen</span>
-              <span className="text-sm font-bold text-violet-700">
+              <span className="text-sm font-bold text-blue-700">
                 {formatCurrency(totalNetWorth)}
               </span>
             </div>
@@ -384,7 +388,7 @@ export default function DashboardPage() {
             <CardTitle className="text-base font-semibold text-foreground">
               Legutóbbi tranzakciók
             </CardTitle>
-            <button className="text-xs text-violet-600 font-medium hover:text-violet-800 flex items-center gap-0.5">
+            <button className="text-xs text-blue-600 font-medium hover:text-blue-800 flex items-center gap-0.5">
               Összes <ChevronRight className="w-3 h-3" />
             </button>
           </CardHeader>
