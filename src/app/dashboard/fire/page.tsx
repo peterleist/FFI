@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   LineChart,
   Line,
@@ -12,15 +12,25 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts'
-import { Flame, Target, TrendingUp, Calendar } from 'lucide-react'
+import { Flame, Target, TrendingUp, Calendar, Check } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { useAppStore } from '@/lib/store'
+import { AccountType } from '@/lib/types'
+import { useAccountValues } from '@/lib/account-value'
 import { formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
+
+const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
+  [AccountType.BANK]: 'Bankszámla',
+  [AccountType.CASH]: 'Készpénz',
+  [AccountType.TBSZ]: 'TBSZ',
+  [AccountType.ALLAMPAPIR]: 'Állampapír',
+  [AccountType.BROKER]: 'Bróker',
+}
 
 function computeFireProjection(
   currentSavings: number,
@@ -80,14 +90,39 @@ const SWR_SCENARIOS = [
 ]
 
 export default function FirePage() {
-  const { accounts, fireGoalAmount, fireTargetAge, monthlyExpenses } = useAppStore()
+  const {
+    accounts, fireGoalAmount, fireTargetAge, monthlyExpenses,
+    investmentPositions, fireAccountIds, setFireAccountIds,
+  } = useAppStore()
 
-  const totalNetWorth = accounts.reduce((s, a) => s + a.balance, 0)
+  // Account values — TBSZ/BROKER valued live from positions
+  const { values: accountValues } = useAccountValues(accounts, investmentPositions)
+
+  // Which accounts count toward FIRE (null = all)
+  const includedIds = fireAccountIds ?? accounts.map((a) => a.id)
+  const totalNetWorth = accounts
+    .filter((a) => includedIds.includes(a.id))
+    .reduce((s, a) => s + (accountValues[a.id] ?? a.balance), 0)
+
   const fireGoal = fireGoalAmount
   const fireProgress = Math.min((totalNetWorth / fireGoal) * 100, 100)
 
+  const toggleAccount = (id: string) => {
+    const current = fireAccountIds ?? accounts.map((a) => a.id)
+    const next = current.includes(id)
+      ? current.filter((x) => x !== id)
+      : [...current, id]
+    setFireAccountIds(next)
+  }
+
   // Calculator state
-  const [currentSavings, setCurrentSavings] = useState(String(totalNetWorth))
+  const [currentSavings, setCurrentSavings] = useState(String(Math.round(totalNetWorth)))
+  const [savingsTouched, setSavingsTouched] = useState(false)
+
+  // Keep "current savings" synced with the live FIRE net worth until edited
+  useEffect(() => {
+    if (!savingsTouched) setCurrentSavings(String(Math.round(totalNetWorth)))
+  }, [totalNetWorth, savingsTouched])
   const [monthlyContribution, setMonthlyContribution] = useState('200000')
   const [annualReturn, setAnnualReturn] = useState('7')
   const [savingsGrowthRate, setSavingsGrowthRate] = useState('3')
@@ -179,6 +214,58 @@ export default function FirePage() {
         </CardContent>
       </Card>
 
+      {/* FIRE account selection */}
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base text-foreground">FIRE-be beleszámító számlák</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Válaszd ki, mely számlák értékét vegyük figyelembe a FIRE számításnál
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-1.5">
+          {accounts.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-2">Nincs számla</p>
+          ) : (
+            accounts.map((acc) => {
+              const included = includedIds.includes(acc.id)
+              return (
+                <button
+                  key={acc.id}
+                  type="button"
+                  onClick={() => toggleAccount(acc.id)}
+                  className={`w-full flex items-center gap-3 p-2.5 rounded-lg border transition-colors text-left ${
+                    included
+                      ? 'border-primary/40 bg-primary/5'
+                      : 'border-border bg-muted hover:bg-muted/70'
+                  }`}
+                >
+                  <div className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 ${
+                    included ? 'bg-primary border-primary' : 'border-border'
+                  }`}>
+                    {included && <Check className="w-3.5 h-3.5 text-white" />}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground truncate">{acc.name}</p>
+                    <p className="text-[11px] text-muted-foreground">{ACCOUNT_TYPE_LABELS[acc.type]}</p>
+                  </div>
+                  <span className={`text-sm font-semibold tabular-nums shrink-0 ${
+                    included ? 'text-foreground' : 'text-muted-foreground'
+                  }`}>
+                    {formatCurrency(accountValues[acc.id] ?? acc.balance)}
+                  </span>
+                </button>
+              )
+            })
+          )}
+          <div className="flex justify-between pt-2.5 mt-1 border-t border-border">
+            <span className="text-sm text-muted-foreground font-medium">FIRE-be számított vagyon</span>
+            <span className="text-sm font-bold text-primary tabular-nums">
+              {formatCurrency(totalNetWorth)}
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* SWR scenarios */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {SWR_SCENARIOS.map((scenario) => {
@@ -223,7 +310,7 @@ export default function FirePage() {
               <Input
                 type="number"
                 value={currentSavings}
-                onChange={(e) => setCurrentSavings(e.target.value)}
+                onChange={(e) => { setCurrentSavings(e.target.value); setSavingsTouched(true) }}
                 className="bg-muted border-border text-foreground"
               />
             </div>

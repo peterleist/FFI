@@ -31,6 +31,8 @@ import { formatCurrency } from '@/lib/utils'
 import { format, subMonths, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns'
 import { hu } from 'date-fns/locale'
 import { MarketWidget } from '@/components/market-widget'
+import { useAccountValues } from '@/lib/account-value'
+import { recurringAsTransactions } from '@/lib/recurring'
 
 const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   [AccountType.BANK]: 'Bankszámla',
@@ -140,15 +142,25 @@ const CustomTooltip = ({
 }
 
 export default function DashboardPage() {
-  const { accounts, transactions, categories, fireGoalAmount } = useAppStore()
+  const {
+    accounts, transactions, categories, fireGoalAmount, investmentPositions,
+    fireAccountIds, recurringItems, trackingStartMonth,
+  } = useAppStore()
 
   const now = new Date()
   const thisMonthStart = startOfMonth(now)
   const thisMonthEnd = endOfMonth(now)
 
-  const totalNetWorth = accounts.reduce((sum, a) => sum + a.balance, 0)
+  // Account values — TBSZ/BROKER valued live from their positions
+  const { values: accountValues, total: totalNetWorth } = useAccountValues(accounts, investmentPositions)
 
-  const thisMonthTxs = transactions.filter(
+  // Real transactions + recurring items materialised as occurrences
+  const allTxs = useMemo(
+    () => [...transactions, ...recurringAsTransactions(recurringItems, trackingStartMonth)],
+    [transactions, recurringItems, trackingStartMonth]
+  )
+
+  const thisMonthTxs = allTxs.filter(
     (t) =>
       t.status === TransactionStatus.CONFIRMED &&
       isWithinInterval(new Date(t.date), { start: thisMonthStart, end: thisMonthEnd })
@@ -163,14 +175,20 @@ export default function DashboardPage() {
   )
 
   const fireGoal = fireGoalAmount
-  const fireProgress = Math.min((totalNetWorth / fireGoal) * 100, 100)
+  // FIRE net worth — only the accounts the user opted into (null = all)
+  const fireNetWorth = fireAccountIds === null
+    ? totalNetWorth
+    : accounts
+        .filter((a) => fireAccountIds.includes(a.id))
+        .reduce((s, a) => s + (accountValues[a.id] ?? a.balance), 0)
+  const fireProgress = Math.min((fireNetWorth / fireGoal) * 100, 100)
 
   const cashflowData = useMemo(() => {
     return Array.from({ length: 6 }, (_, i) => {
       const month = subMonths(now, 5 - i)
       const start = startOfMonth(month)
       const end = endOfMonth(month)
-      const monthTxs = transactions.filter(
+      const monthTxs = allTxs.filter(
         (t) =>
           t.status === TransactionStatus.CONFIRMED &&
           isWithinInterval(new Date(t.date), { start, end })
@@ -185,9 +203,9 @@ export default function DashboardPage() {
         Kiadás: expense,
       }
     })
-  }, [transactions])
+  }, [allTxs])
 
-  const recentTxs = [...transactions]
+  const recentTxs = [...allTxs]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 5)
 
@@ -366,7 +384,7 @@ export default function DashboardPage() {
                   </Badge>
                 </div>
                 <span className="text-sm font-bold text-foreground whitespace-nowrap">
-                  {formatCurrency(acc.balance)}
+                  {formatCurrency(accountValues[acc.id] ?? acc.balance)}
                 </span>
               </div>
             ))}

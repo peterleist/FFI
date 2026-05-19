@@ -34,6 +34,7 @@ export interface AppSnapshot {
   fireTargetAge: number | null
   monthlyExpenses: number | null
   trackingStartMonth: string | null   // "YYYY-MM" – bank/cash accounts
+  fireAccountIds: string[] | null     // accounts counted in FIRE; null = all
   customViews: CustomPortfolioView[]
   accounts: Account[]
   categories: Category[]
@@ -51,6 +52,7 @@ export function extractSnapshot(s: AppState): AppSnapshot {
     fireTargetAge: s.fireTargetAge,
     monthlyExpenses: s.monthlyExpenses,
     trackingStartMonth: s.trackingStartMonth,
+    fireAccountIds: s.fireAccountIds,
     customViews: s.customViews,
     accounts: s.accounts,
     categories: s.categories,
@@ -69,9 +71,11 @@ interface AppState {
   fireTargetAge: number | null
   monthlyExpenses: number | null
   trackingStartMonth: string | null   // "YYYY-MM"
+  fireAccountIds: string[] | null     // accounts counted in FIRE; null = all
   completeSetup: () => void
   updateProfile: (data: Partial<UserProfile>) => void
   setTrackingStartMonth: (month: string | null) => void
+  setFireAccountIds: (ids: string[] | null) => void
   setAccountOpeningBalance: (accountId: string, balance: number) => void
   loadSnapshot: (snap: AppSnapshot) => void
 
@@ -149,9 +153,33 @@ export const DEFAULT_CATEGORIES: Omit<Category, 'userId' | 'id'>[] = [
   { name: 'Egyéb bevétel',      type: CategoryType.INCOME,  icon: '💰', color: '#64748b', monthlyBudget: null, createdAt: new Date(), updatedAt: new Date() },
   // Transfer
   { name: 'Átutalás',           type: CategoryType.TRANSFER, icon: '↔️', color: '#94a3b8', monthlyBudget: null, createdAt: new Date(), updatedAt: new Date() },
+  // Additional useful categories
+  { name: 'Előfizetések',       type: CategoryType.EXPENSE,  icon: '📺', color: '#6366f1', monthlyBudget: null, createdAt: new Date(), updatedAt: new Date() },
+  { name: 'Utazás',             type: CategoryType.EXPENSE,  icon: '✈️', color: '#0ea5e9', monthlyBudget: null, createdAt: new Date(), updatedAt: new Date() },
+  { name: 'Biztosítás',         type: CategoryType.EXPENSE,  icon: '🛡️', color: '#14b8a6', monthlyBudget: null, createdAt: new Date(), updatedAt: new Date() },
+  { name: 'Sport & Hobbi',      type: CategoryType.EXPENSE,  icon: '🏃', color: '#f59e0b', monthlyBudget: null, createdAt: new Date(), updatedAt: new Date() },
+  { name: 'Ajándékok',          type: CategoryType.EXPENSE,  icon: '🎀', color: '#ec4899', monthlyBudget: null, createdAt: new Date(), updatedAt: new Date() },
+  { name: 'Adók & illetékek',   type: CategoryType.EXPENSE,  icon: '🧾', color: '#ef4444', monthlyBudget: null, createdAt: new Date(), updatedAt: new Date() },
+  { name: 'Hiteltörlesztés',    type: CategoryType.EXPENSE,  icon: '🏦', color: '#64748b', monthlyBudget: null, createdAt: new Date(), updatedAt: new Date() },
+  { name: 'Megtakarítás',       type: CategoryType.EXPENSE,  icon: '🐷', color: '#22c55e', monthlyBudget: null, createdAt: new Date(), updatedAt: new Date() },
+  { name: 'Háztartási cikkek',  type: CategoryType.EXPENSE,  icon: '🧹', color: '#a855f7', monthlyBudget: null, createdAt: new Date(), updatedAt: new Date() },
+  { name: 'Mellékjövedelem',    type: CategoryType.INCOME,   icon: '💻', color: '#06b6d4', monthlyBudget: null, createdAt: new Date(), updatedAt: new Date() },
+  { name: 'Osztalék',           type: CategoryType.INCOME,   icon: '🪙', color: '#f59e0b', monthlyBudget: null, createdAt: new Date(), updatedAt: new Date() },
+  { name: 'Bérleti díj bevétel', type: CategoryType.INCOME,  icon: '🔑', color: '#8b5cf6', monthlyBudget: null, createdAt: new Date(), updatedAt: new Date() },
 ]
 
 const userId = 'local-user'
+
+/** The seeded starter categories — always present so income/expense pickers work. */
+export function makeDefaultCategories(): Category[] {
+  return DEFAULT_CATEGORIES.map((c, i) => ({ ...c, id: `cat-default-${i}`, userId }))
+}
+
+/** Keeps the user's categories but appends any seeded default that's missing. */
+function withDefaultCategories(categories: Category[]): Category[] {
+  const have = new Set(categories.map((c) => c.id))
+  return [...categories, ...makeDefaultCategories().filter((d) => !have.has(d.id))]
+}
 
 export const useAppStore = create<AppState>()(
   persist(
@@ -163,17 +191,27 @@ export const useAppStore = create<AppState>()(
       fireTargetAge: null,
       monthlyExpenses: null,
       trackingStartMonth: null,
+      fireAccountIds: null,
 
       completeSetup: () => set({ setupComplete: true }),
       updateProfile: (data) => set((s) => ({ ...s, ...data })),
       setTrackingStartMonth: (month) => set({ trackingStartMonth: month }),
+      setFireAccountIds: (ids) => set({ fireAccountIds: ids }),
       setAccountOpeningBalance: (accountId, balance) =>
         set((s) => ({
           accounts: s.accounts.map((a) =>
             a.id === accountId ? { ...a, balance, updatedAt: new Date() } : a
           ),
         })),
-      loadSnapshot: (snap) => set(snap),
+      loadSnapshot: (snap) =>
+        set((s) => ({
+          ...snap,
+          // Keep the user's categories, but never lose the seeded defaults —
+          // missing ones (incl. newly added defaults) are merged back in.
+          categories: withDefaultCategories(
+            snap.categories?.length ? snap.categories : s.categories
+          ),
+        })),
 
       // ── Custom views ──────────────────────────────────────────────────────────
       customViews: [],
@@ -188,11 +226,7 @@ export const useAppStore = create<AppState>()(
 
       // ── Core data (empty — filled by setup wizard) ────────────────────────────
       accounts: [],
-      categories: DEFAULT_CATEGORIES.map((c, i) => ({
-        ...c,
-        id: `cat-default-${i}`,
-        userId,
-      })),
+      categories: makeDefaultCategories(),
       transactions: [],
       recurringItems: [],
       investmentPositions: [],
@@ -420,6 +454,18 @@ export const useAppStore = create<AppState>()(
       storage: createJSONStorage(() =>
         typeof window !== 'undefined' ? localStorage : ({} as Storage)
       ),
+      // Guard against a persisted state that lost its categories, and
+      // backfill any newly added default categories.
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<AppState>
+        return {
+          ...current,
+          ...p,
+          categories: withDefaultCategories(
+            p.categories?.length ? p.categories : current.categories
+          ),
+        }
+      },
     }
   )
 )

@@ -7,6 +7,9 @@ services:
       POSTGRES_DB: pefi
       POSTGRES_USER: pefi
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pefi_secret_change_me}
+    ports:
+      # Exposed so local `npm run dev` can connect to the same database
+      - "${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
