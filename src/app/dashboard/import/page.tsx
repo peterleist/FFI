@@ -402,14 +402,21 @@ export default function ImportPage() {
                     </td>
                     <td className="p-4">
                       <Select
-                        value={row.categoryId ?? ''}
-                        onValueChange={(v: string) => updateRow(row.id, { categoryId: v || null })}
+                        value={row.categoryId ?? '__none__'}
+                        onValueChange={(v: string) =>
+                          updateRow(row.id, { categoryId: v === '__none__' ? null : v })
+                        }
                       >
                         <SelectTrigger className="bg-muted border-border text-foreground h-8 text-sm w-44">
-                          <SelectValue placeholder="Kategória" />
+                          {(() => {
+                            const c = categories.find((x) => x.id === row.categoryId)
+                            return c
+                              ? <span className="truncate">{c.icon} {c.name}</span>
+                              : <span className="text-muted-foreground">Kategória</span>
+                          })()}
                         </SelectTrigger>
                         <SelectContent className="bg-card border-border">
-                          <SelectItem value="" className="text-muted-foreground">Nincs</SelectItem>
+                          <SelectItem value="__none__" className="text-muted-foreground">Nincs</SelectItem>
                           {expenseCategories.map((c) => (
                             <SelectItem key={c.id} value={c.id} className="text-foreground">
                               {c.icon} {c.name}
