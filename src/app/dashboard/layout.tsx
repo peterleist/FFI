@@ -12,27 +12,24 @@ export default function DashboardLayout({
   return (
     <DbSyncProvider>
       <SetupGate>
-        <div className="flex h-screen bg-background">
+        <div className="pf-app">
           <Sidebar />
-          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <div className="pf-main">
             <UserBar />
 
             {/* Mobile header */}
-            <header className="md:hidden flex items-center justify-between px-4 py-3 bg-card border-b border-border">
-              <div className="flex items-center gap-3">
-                <MobileSidebar />
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center">
-                    <Flame className="w-4 h-4 text-white" />
-                  </div>
-                  <span className="font-bold text-foreground">PEFI</span>
-                </div>
-              </div>
+            <header
+              className="md:hidden flex items-center gap-3 px-4 py-3 border-b"
+              style={{ borderColor: 'var(--pf-border)', background: 'var(--pf-bg-elev)' }}
+            >
+              <MobileSidebar />
+              <span className="sb-flame"><Flame className="w-3 h-3 text-white" /></span>
+              <span className="font-semibold text-foreground">PEFI</span>
             </header>
 
             {/* Page content */}
             <main className="flex-1 overflow-y-auto">
-              <div className="p-4 md:p-6 max-w-7xl mx-auto">{children}</div>
+              <div className="content">{children}</div>
             </main>
           </div>
         </div>

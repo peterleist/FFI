@@ -3,348 +3,263 @@
 import { useState, useMemo } from 'react'
 import { format, startOfMonth, endOfMonth, isWithinInterval, subMonths } from 'date-fns'
 import { hu } from 'date-fns/locale'
-import { Pencil, Check, X, Plus } from 'lucide-react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Pencil, Check, X, Plus, Tag } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
 import { CategoryType, TransactionStatus } from '@/lib/types'
-import { formatCurrency } from '@/lib/utils'
-import { IncomePanel } from '@/components/budget/income-panel'
 import { recurringAsTransactions } from '@/lib/recurring'
+import { IncomePanel } from '@/components/budget/income-panel'
 import { toast } from 'sonner'
+
+function fmtCompact(v: number): string {
+  const a = Math.abs(v)
+  const s = v < 0 ? '−' : ''
+  if (a >= 1e9) return `${s}${(a / 1e9).toFixed(2)} Mrd Ft`
+  if (a >= 1e6) return `${s}${(a / 1e6).toFixed(1)}M Ft`
+  if (a >= 1e3) return `${s}${Math.round(a / 1e3)}e Ft`
+  return `${s}${Math.round(a)} Ft`
+}
 
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => {
   const d = subMonths(new Date(), i)
   return {
-    year: d.getFullYear(),
-    month: d.getMonth(),
+    year: d.getFullYear(), month: d.getMonth(),
     label: format(d, 'yyyy. MMMM', { locale: hu }),
     value: `${d.getFullYear()}-${d.getMonth()}`,
   }
 })
-
-const SHORT_MONTHS = ['Jan', 'Feb', 'Már', 'Ápr', 'Máj', 'Jún', 'Júl', 'Aug', 'Sze', 'Okt', 'Nov', 'Dec']
-
-function getHeatColor(pct: number): string {
-  if (pct === 0) return 'bg-muted text-muted-foreground'
-  if (pct < 50) return 'bg-green-500/10 text-green-400'
-  if (pct < 80) return 'bg-amber-500/10 text-amber-400'
-  if (pct < 100) return 'bg-orange-500/10 text-orange-400'
-  return 'bg-red-500/20 text-red-400'
-}
+const SHORT_MONTHS = ['J', 'F', 'M', 'Á', 'M', 'J', 'J', 'A', 'Sz', 'O', 'N', 'D']
 
 export default function BudgetPage() {
   const { transactions, categories, updateCategory, recurringItems, trackingStartMonth } = useAppStore()
-
-  // Real transactions + recurring occurrences — so recurring expenses count as spent
   const allTxs = useMemo(
     () => [...transactions, ...recurringAsTransactions(recurringItems, trackingStartMonth)],
     [transactions, recurringItems, trackingStartMonth]
   )
 
-  const now = new Date()
-  const [selectedValue, setSelectedValue] = useState(`${now.getFullYear()}-${now.getMonth()}`)
-  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
+  const [tab, setTab] = useState<'monthly' | 'annual' | 'income'>('monthly')
+  const [selectedValue, setSelectedValue] = useState(`${new Date().getFullYear()}-${new Date().getMonth()}`)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [editBudget, setEditBudget] = useState('')
 
   const selected = MONTH_OPTIONS.find((m) => m.value === selectedValue) ?? MONTH_OPTIONS[0]
+  const expenseCategories = categories.filter((c) => c.type === CategoryType.EXPENSE)
 
-  const expenseCategories = categories.filter(
-    (c) => c.type === CategoryType.EXPENSE
-  )
-
-  const getSpentForCategory = (categoryId: string, year: number, month: number) => {
+  const spentFor = (catId: string, year: number, month: number) => {
     const start = startOfMonth(new Date(year, month))
     const end = endOfMonth(new Date(year, month))
     return Math.abs(
       allTxs
-        .filter(
-          (t) =>
-            t.categoryId === categoryId &&
-            t.amount < 0 &&
-            t.status === TransactionStatus.CONFIRMED &&
-            isWithinInterval(new Date(t.date), { start, end })
-        )
+        .filter((t) => t.categoryId === catId && t.amount < 0 && t.status === TransactionStatus.CONFIRMED &&
+          isWithinInterval(new Date(t.date), { start, end }))
         .reduce((s, t) => s + t.amount, 0)
     )
   }
 
-  const budgetSummary = useMemo(() => {
-    const rows = expenseCategories.map((cat) => {
-      const hasBudget = cat.monthlyBudget !== null
-      const spent = getSpentForCategory(cat.id, selected.year, selected.month)
-      const budget = cat.monthlyBudget ?? 0
-      const remaining = budget - spent
-      const pct = budget > 0 ? (spent / budget) * 100 : 0
-      return { cat, hasBudget, spent, budget, remaining, pct }
-    })
-    // Categories with a budget set come first
-    rows.sort((a, b) => Number(b.hasBudget) - Number(a.hasBudget))
-    const totalBudgeted = rows.reduce((s, r) => s + r.budget, 0)
-    const totalSpent = rows.reduce((s, r) => s + r.spent, 0)
-    return { rows, totalBudgeted, totalSpent, difference: totalBudgeted - totalSpent }
+  const rows = useMemo(() => {
+    return expenseCategories
+      .map((cat) => {
+        const hasBudget = cat.monthlyBudget !== null
+        const spent = spentFor(cat.id, selected.year, selected.month)
+        const budget = cat.monthlyBudget ?? 0
+        return { cat, hasBudget, spent, budget, pct: budget > 0 ? spent / budget : 0 }
+      })
+      .sort((a, b) => Number(b.hasBudget) - Number(a.hasBudget) || b.pct - a.pct)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expenseCategories, allTxs, selected])
 
-  const startEdit = (catId: string, currentBudget: number | null) => {
-    setEditingCategoryId(catId)
-    setEditBudget(String(currentBudget ?? 0))
-  }
+  const totalBudget = rows.reduce((s, r) => s + r.budget, 0)
+  const totalSpent = rows.reduce((s, r) => s + r.spent, 0)
+  const totalPct = totalBudget > 0 ? totalSpent / totalBudget : 0
 
-  const saveEdit = (catId: string) => {
-    const val = parseInt(editBudget)
-    if (isNaN(val) || val < 0) {
-      toast.error('Érvénytelen összeg')
-      return
-    }
-    updateCategory(catId, { monthlyBudget: val })
-    setEditingCategoryId(null)
+  const startEdit = (id: string, current: number | null) => {
+    setEditingId(id)
+    setEditBudget(String(current ?? 0))
+  }
+  const saveEdit = (id: string) => {
+    const v = parseInt(editBudget)
+    if (isNaN(v) || v < 0) { toast.error('Érvénytelen összeg'); return }
+    updateCategory(id, { monthlyBudget: v })
+    setEditingId(null)
     toast.success('Költségvetés frissítve')
   }
 
-  // Annual grid: last 12 months × categories
   const annualMonths = Array.from({ length: 12 }, (_, i) => {
-    const d = subMonths(now, 11 - i)
+    const d = subMonths(new Date(), 11 - i)
     return { year: d.getFullYear(), month: d.getMonth(), label: SHORT_MONTHS[d.getMonth()] }
   })
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
+    <>
+      <div className="page-hd">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Költségvetés</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">Havi kiadási tervek nyomon követése</p>
+          <div className="crumb">Tervezés és követés</div>
+          <h1>Költségvetés</h1>
         </div>
-        <Select value={selectedValue} onValueChange={setSelectedValue}>
-          <SelectTrigger className="w-48 bg-muted border-border text-foreground">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="bg-card border-border">
-            {MONTH_OPTIONS.map((m) => (
-              <SelectItem key={m.value} value={m.value} className="text-foreground">
-                {m.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="row" style={{ gap: 8 }}>
+          {tab === 'monthly' && (
+            <select className="pf-btn sm" style={{ background: 'var(--pf-bg-elev)' }}
+              value={selectedValue} onChange={(e) => setSelectedValue(e.target.value)}>
+              {MONTH_OPTIONS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+            </select>
+          )}
+          <div className="pf-tabs">
+            <span className={`tab ${tab === 'monthly' ? 'active' : ''}`} onClick={() => setTab('monthly')}>Havi</span>
+            <span className={`tab ${tab === 'annual' ? 'active' : ''}`} onClick={() => setTab('annual')}>Éves</span>
+            <span className={`tab ${tab === 'income' ? 'active' : ''}`} onClick={() => setTab('income')}>Várható bevétel</span>
+          </div>
+        </div>
       </div>
 
-      <Tabs defaultValue="monthly">
-        <TabsList className="bg-muted border border-border flex-wrap h-auto">
-          <TabsTrigger value="monthly" className="data-[state=active]:bg-primary data-[state=active]:text-white">
-            Havi nézet
-          </TabsTrigger>
-          <TabsTrigger value="annual" className="data-[state=active]:bg-primary data-[state=active]:text-white">
-            Éves nézet
-          </TabsTrigger>
-          <TabsTrigger value="income" className="data-[state=active]:bg-primary data-[state=active]:text-white">
-            Várható bevételek
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="monthly" className="space-y-4 mt-4">
-          {/* Summary cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <Card className="bg-card border-border">
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">Tervezett kiadás</p>
-                <p className="text-xl font-bold text-foreground">
-                  {formatCurrency(budgetSummary.totalBudgeted)}
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="bg-card border-border">
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">Tényleges kiadás</p>
-                <p className="text-xl font-bold text-red-400">
-                  {formatCurrency(budgetSummary.totalSpent)}
-                </p>
-              </CardContent>
-            </Card>
-            <Card className="bg-card border-border">
-              <CardContent className="p-4">
-                <p className="text-xs text-muted-foreground">Különbség</p>
-                <p
-                  className={`text-xl font-bold ${
-                    budgetSummary.difference >= 0 ? 'text-green-400' : 'text-red-400'
-                  }`}
-                >
-                  {budgetSummary.difference >= 0 ? '+' : ''}
-                  {formatCurrency(budgetSummary.difference)}
-                </p>
-              </CardContent>
-            </Card>
+      {tab === 'monthly' && (
+        <>
+          {/* Hero */}
+          <div className="pf-card hero-grad" style={{ padding: 22, marginBottom: 16 }}>
+            <div className="row between" style={{ flexWrap: 'wrap', gap: 16 }}>
+              <div>
+                <div className="lbl" style={{ color: 'var(--pf-muted)', fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
+                  {selected.label} · havi keret
+                </div>
+                <div className="num" style={{ fontSize: 30, fontWeight: 600, marginTop: 4, letterSpacing: '-.02em' }}>
+                  {fmtCompact(totalSpent)}{' '}
+                  <span className="pf-muted" style={{ fontSize: 16, fontWeight: 400 }}>/ {fmtCompact(totalBudget)}</span>
+                </div>
+                <div className="row" style={{ gap: 10, marginTop: 8 }}>
+                  <span className="pf-badge accent">{(totalPct * 100).toFixed(0)}% felhasználva</span>
+                  <span className="pf-muted" style={{ fontSize: 11.5 }}>
+                    {fmtCompact(Math.max(0, totalBudget - totalSpent))} maradék
+                  </span>
+                </div>
+              </div>
+              <div style={{ minWidth: 280, flex: '0 1 360px' }}>
+                <div className={`pf-progress tall ${totalPct > 1 ? 'over' : totalPct > 0.85 ? 'warn' : ''}`} style={{ marginTop: 10 }}>
+                  <div className="bar" style={{ width: `${Math.min(100, totalPct * 100)}%` }} />
+                </div>
+                <div className="row between" style={{ marginTop: 8 }}>
+                  <span className="num pf-muted" style={{ fontSize: 10.5 }}>0</span>
+                  <span className="num pf-muted" style={{ fontSize: 10.5 }}>{fmtCompact(totalBudget)}</span>
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Category rows */}
-          <Card className="bg-card border-border">
-            <CardHeader>
-              <CardTitle className="text-base text-foreground">Kategóriák</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              {budgetSummary.rows.map(({ cat, hasBudget, spent, budget, remaining, pct }) => (
-                <div key={cat.id} className="space-y-2">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-lg">{cat.icon}</span>
-                      <span className={`text-sm font-medium truncate ${hasBudget ? 'text-foreground' : 'text-muted-foreground'}`}>
-                        {cat.name}
-                      </span>
-                      {hasBudget && pct > 100 && (
-                        <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-[10px] px-1.5 py-0 border">
-                          Túllépve
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {editingCategoryId === cat.id ? (
-                        <div className="flex items-center gap-1">
-                          <Input
-                            type="number"
-                            value={editBudget}
-                            onChange={(e) => setEditBudget(e.target.value)}
-                            placeholder="Havi keret (Ft)"
-                            className="w-32 h-7 bg-muted border-border text-foreground text-sm"
-                            autoFocus
-                          />
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-emerald-400 hover:bg-emerald-500/10"
-                            onClick={() => saveEdit(cat.id)}
-                          >
-                            <Check className="w-3.5 h-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-muted-foreground hover:bg-muted"
-                            onClick={() => setEditingCategoryId(null)}
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                      ) : hasBudget ? (
-                        <>
-                          <span
-                            className={`text-sm font-semibold ${
-                              pct > 100
-                                ? 'text-red-400'
-                                : pct > 80
-                                ? 'text-amber-400'
-                                : 'text-muted-foreground'
-                            }`}
-                          >
-                            {formatCurrency(spent)} / {formatCurrency(budget)}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-muted-foreground hover:text-foreground hover:bg-muted"
-                            onClick={() => startEdit(cat.id, cat.monthlyBudget)}
-                          >
-                            <Pencil className="w-3 h-3" />
-                          </Button>
-                        </>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-xs border-border text-muted-foreground hover:text-foreground hover:bg-muted gap-1"
-                          onClick={() => startEdit(cat.id, null)}
-                        >
-                          <Plus className="w-3 h-3" />
-                          Keret hozzáadása
-                        </Button>
-                      )}
-                    </div>
+          {/* Category cards */}
+          <div className="pf-grid grid-3">
+            {rows.map(({ cat, hasBudget, spent, budget, pct }) => {
+              const over = pct > 1
+              const editing = editingId === cat.id
+              return (
+                <div key={cat.id} className="pf-card" style={{ padding: 16 }}>
+                  <div className="row between" style={{ marginBottom: 8 }}>
+                    <span className="row" style={{ gap: 10 }}>
+                      <span style={{
+                        width: 28, height: 28, borderRadius: 8, display: 'grid', placeItems: 'center',
+                        background: `color-mix(in oklab, ${cat.color || '#94A3B8'} 14%, var(--pf-card-2))`,
+                        color: cat.color || '#94A3B8', border: '1px solid var(--pf-hairline)', fontSize: 14,
+                      }}>{cat.icon || <Tag size={13} />}</span>
+                      <span style={{ fontSize: 13, fontWeight: 500 }}>{cat.name}</span>
+                      {hasBudget && over && <span className="pf-badge loss" style={{ padding: '1px 6px' }}>Túllépve</span>}
+                    </span>
+                    {!editing && (
+                      <button className="pf-btn sm ghost icon" type="button" onClick={() => startEdit(cat.id, cat.monthlyBudget)}>
+                        <Pencil size={12} />
+                      </button>
+                    )}
                   </div>
-                  {hasBudget && (
+
+                  {editing ? (
+                    <div className="row" style={{ gap: 6 }}>
+                      <input className="num" type="number" value={editBudget} autoFocus
+                        onChange={(e) => setEditBudget(e.target.value)}
+                        placeholder="Havi keret (Ft)"
+                        style={{ flex: 1, background: 'var(--pf-bg-elev)', border: '1px solid var(--pf-border)', borderRadius: 8, padding: '6px 10px', color: 'var(--pf-text)', fontSize: 13 }} />
+                      <button className="pf-btn sm icon" type="button" onClick={() => saveEdit(cat.id)} style={{ color: 'var(--pf-gain)' }}><Check size={13} /></button>
+                      <button className="pf-btn sm icon ghost" type="button" onClick={() => setEditingId(null)}><X size={13} /></button>
+                    </div>
+                  ) : hasBudget ? (
                     <>
-                      <div className="flex items-center gap-3">
-                        <Progress
-                          value={Math.min(pct, 100)}
-                          className="flex-1 h-2 bg-muted"
-                        />
-                        <span className="text-xs text-muted-foreground w-10 text-right">
-                          {pct.toFixed(0)}%
+                      <div className="row between" style={{ marginBottom: 6, alignItems: 'baseline' }}>
+                        <span className="num" style={{ fontSize: 18, fontWeight: 600, color: over ? 'var(--pf-loss)' : 'var(--pf-text)' }}>
+                          {fmtCompact(spent)}
+                        </span>
+                        <span className="num pf-muted" style={{ fontSize: 11.5 }}>/ {fmtCompact(budget)}</span>
+                      </div>
+                      <div className={`pf-progress tall ${over ? 'over' : pct > 0.85 ? 'warn' : ''}`}>
+                        <div className="bar" style={{ width: `${Math.min(100, pct * 100)}%`, background: over ? undefined : (cat.color || undefined) }} />
+                      </div>
+                      <div className="row between" style={{ marginTop: 8 }}>
+                        <span className="num pf-muted" style={{ fontSize: 10.5 }}>{(pct * 100).toFixed(0)}% felhasználva</span>
+                        <span className="num" style={{ fontSize: 11, color: over ? 'var(--pf-loss)' : 'var(--pf-text-2)' }}>
+                          {over ? '−' : ''}{fmtCompact(Math.abs(budget - spent))} {over ? 'túllépés' : 'maradék'}
                         </span>
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        {remaining >= 0
-                          ? `Maradék: ${formatCurrency(remaining)}`
-                          : `Túllépés: ${formatCurrency(Math.abs(remaining))}`}
-                      </p>
                     </>
+                  ) : (
+                    <button className="pf-btn sm" type="button" onClick={() => startEdit(cat.id, null)} style={{ width: '100%', justifyContent: 'center' }}>
+                      <Plus size={12} /> Keret hozzáadása
+                    </button>
                   )}
                 </div>
-              ))}
-            </CardContent>
-          </Card>
-        </TabsContent>
+              )
+            })}
+          </div>
+        </>
+      )}
 
-        <TabsContent value="annual" className="mt-4">
-          <Card className="bg-card border-border overflow-x-auto">
-            <CardHeader>
-              <CardTitle className="text-base text-foreground">Éves áttekintő (hőtérkép)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <table className="w-full text-sm">
-                <thead>
-                  <tr>
-                    <th className="text-left text-muted-foreground font-medium py-2 pr-4 whitespace-nowrap">
-                      Kategória
-                    </th>
-                    {annualMonths.map((m) => (
-                      <th key={m.label} className="text-center text-muted-foreground font-medium py-2 px-1 min-w-12">
-                        {m.label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {expenseCategories.map((cat) => (
-                    <tr key={cat.id} className="border-t border-border">
-                      <td className="py-2 pr-4 text-foreground whitespace-nowrap">
-                        {cat.icon} {cat.name}
-                      </td>
-                      {annualMonths.map((m) => {
-                        const spent = getSpentForCategory(cat.id, m.year, m.month)
-                        const budget = cat.monthlyBudget ?? 0
-                        const pct = budget > 0 ? (spent / budget) * 100 : 0
-                        return (
-                          <td key={`${m.year}-${m.month}`} className="px-1 py-1.5">
-                            <div
-                              className={`text-center text-xs rounded px-1 py-1 ${getHeatColor(pct)}`}
-                              title={`${formatCurrency(spent)} / ${formatCurrency(budget)}`}
-                            >
-                              {pct > 0 ? `${pct.toFixed(0)}%` : '–'}
-                            </div>
-                          </td>
-                        )
-                      })}
-                    </tr>
+      {tab === 'annual' && (
+        <div className="pf-card">
+          <div className="row between" style={{ marginBottom: 14 }}>
+            <div>
+              <h3 className="card-title">Éves kihasználtság</h3>
+              <div className="card-sub">A havi keret elköltött százaléka</div>
+            </div>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ borderCollapse: 'separate', borderSpacing: 4, fontSize: 11, fontFamily: 'var(--font-mono)' }}>
+              <thead>
+                <tr>
+                  <th style={{ width: 130 }} />
+                  {annualMonths.map((m, i) => (
+                    <th key={i} style={{ color: 'var(--pf-muted)', fontWeight: 400, padding: '4px 6px', textAlign: 'center', fontSize: 10.5 }}>{m.label}</th>
                   ))}
-                </tbody>
-              </table>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                </tr>
+              </thead>
+              <tbody>
+                {expenseCategories.map((cat) => (
+                  <tr key={cat.id}>
+                    <td style={{ color: 'var(--pf-text-2)', padding: '0 8px 0 0', whiteSpace: 'nowrap', fontSize: 11.5, fontFamily: 'var(--font-sans)' }}>
+                      {cat.icon} {cat.name}
+                    </td>
+                    {annualMonths.map((m, ci) => {
+                      const budget = cat.monthlyBudget ?? 0
+                      const spent = spentFor(cat.id, m.year, m.month)
+                      const v = budget > 0 ? spent / budget : null
+                      let bg = 'var(--pf-card-2)'
+                      if (v != null) {
+                        bg = v <= 1
+                          ? `color-mix(in oklab, var(--pf-accent) ${Math.round(v * 70)}%, var(--pf-card-2))`
+                          : `color-mix(in oklab, var(--pf-loss) ${Math.round(40 + Math.min(1, (v - 1) * 2) * 40)}%, var(--pf-card-2))`
+                      }
+                      return (
+                        <td key={ci} title={`${cat.name} · ${m.label}: ${v != null ? Math.round(v * 100) : 0}%`}
+                          style={{
+                            width: 40, height: 24, borderRadius: 5, background: bg,
+                            color: v != null ? 'rgba(255,255,255,.92)' : 'var(--pf-muted-2)',
+                            textAlign: 'center', verticalAlign: 'middle', fontWeight: 500,
+                            border: '1px solid var(--pf-hairline)', opacity: v == null ? 0.5 : 1,
+                          }}>
+                          {v != null ? Math.round(v * 100) : '–'}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
-        <TabsContent value="income" className="mt-4">
-          <IncomePanel year={selected.year} month={selected.month} />
-        </TabsContent>
-      </Tabs>
-    </div>
+      {tab === 'income' && <IncomePanel year={selected.year} month={selected.month} />}
+    </>
   )
 }

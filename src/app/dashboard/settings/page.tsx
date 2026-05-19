@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { format, parse, isValid } from 'date-fns'
 import { hu } from 'date-fns/locale'
 import {
-  Settings, Calendar, Wallet, Building2, Landmark, TrendingUp,
+  Calendar, Wallet, Building2, Landmark, TrendingUp,
   Check, Info, Plus, Pencil, Trash2, X, User,
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -323,13 +323,10 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center">
-          <Settings className="w-5 h-5 text-primary" />
-        </div>
+      <div className="page-hd">
         <div>
-          <h1 className="text-xl font-bold text-foreground">Beállítások</h1>
-          <p className="text-sm text-muted-foreground">Számlák, követés kezdete, nyitóegyenlegek</p>
+          <div className="crumb">Konfiguráció</div>
+          <h1>Beállítások</h1>
         </div>
       </div>
 

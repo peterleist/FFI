@@ -1,12 +1,8 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { GeistSans } from 'geist/font/sans'
+import { GeistMono } from 'geist/font/mono'
 import { Toaster } from '@/components/ui/sonner'
 import './globals.css'
-
-const inter = Inter({
-  variable: '--font-sans',
-  subsets: ['latin'],
-})
 
 export const metadata: Metadata = {
   title: 'PEFI — Személyes Pénzügyek & FIRE',
@@ -21,7 +17,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="hu" className={`${inter.variable} h-full dark`}>
+    <html lang="hu" className={`${GeistSans.variable} ${GeistMono.variable} h-full dark`}>
       <body className="min-h-full flex flex-col antialiased bg-background text-foreground">
         {children}
         <Toaster richColors position="top-right" />

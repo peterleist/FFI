@@ -214,9 +214,11 @@ export default function ImportPage() {
   if (step === 1) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Import</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">CSV fájl importálása bankból</p>
+        <div className="page-hd">
+          <div>
+            <div className="crumb">Tömeges felvitel</div>
+            <h1>Tranzakciók importálása</h1>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -314,9 +316,10 @@ export default function ImportPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="page-hd">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Import áttekintése</h1>
+          <div className="crumb">Tömeges felvitel</div>
+          <h1>Import áttekintése</h1>
           <div className="flex items-center gap-3 mt-1">
             <Badge className="bg-muted text-muted-foreground border-border border">
               <FileText className="w-3 h-3 mr-1" />

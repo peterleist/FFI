@@ -139,35 +139,29 @@ export default function InvestmentsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="page-hd">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Befektetések</h1>
-          <div className="flex items-center gap-3 mt-0.5">
-            <p className="text-muted-foreground text-sm">Portfólió összesítő</p>
-            {lastFetched && (
-              <span className="text-[10px] text-muted-foreground">
-                Frissítve: {format(new Date(lastFetched), 'HH:mm:ss', { locale: hu })}
-              </span>
-            )}
-            <button
-              onClick={refetch}
-              disabled={quotesLoading}
-              className="flex items-center gap-1 text-[10px] text-primary hover:text-primary/70 disabled:opacity-50 transition-colors"
-            >
-              {quotesLoading
-                ? <Loader2 className="w-3 h-3 animate-spin" />
-                : <RefreshCw className="w-3 h-3" />}
-              {quotesLoading ? 'Betöltés…' : 'Frissítés'}
-            </button>
-          </div>
+          <div className="crumb">Portfólió</div>
+          <h1>Befektetések</h1>
         </div>
-        <Button
-          onClick={() => openTradeDialog()}
-          className="bg-primary hover:bg-primary/90 text-white gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Új ügylet
-        </Button>
+        <div className="row" style={{ gap: 8 }}>
+          {lastFetched && (
+            <span className="pf-badge">
+              <span className="live-dot" />
+              {format(new Date(lastFetched), 'HH:mm', { locale: hu })}
+            </span>
+          )}
+          <button className="pf-btn sm" type="button" onClick={refetch} disabled={quotesLoading}>
+            {quotesLoading
+              ? <Loader2 className="w-3 h-3 animate-spin" />
+              : <RefreshCw className="w-3 h-3" />}
+            Frissítés
+          </button>
+          <button className="pf-btn sm primary" type="button" onClick={() => openTradeDialog()}>
+            <Plus className="w-3 h-3" />
+            Új ügylet
+          </button>
+        </div>
       </div>
 
       <Tabs defaultValue="summary">
