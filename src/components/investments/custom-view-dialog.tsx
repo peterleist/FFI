@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Check } from 'lucide-react'
 import { useAppStore, type CustomPortfolioView } from '@/lib/store'
 import { AccountType } from '@/lib/types'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, uid } from '@/lib/utils'
 import { toast } from 'sonner'
 
 interface Props {
@@ -74,7 +74,7 @@ export function CustomViewDialog({ open, onOpenChange, editView }: Props) {
       toast.success('Nézet frissítve')
     } else {
       addCustomView({
-        id: crypto.randomUUID(),
+        id: uid(),
         name: name.trim(),
         description: description.trim() || undefined,
         accountIds: selectedIds,

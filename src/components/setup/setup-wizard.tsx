@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { useAppStore } from '@/lib/store'
 import { AccountType } from '@/lib/types'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, uid } from '@/lib/utils'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -101,7 +101,7 @@ export function SetupWizard() {
 
   // Step 2 – bank / cash
   const [bankRows, setBankRows] = useState<AccountRow[]>([
-    { id: crypto.randomUUID(), name: '', balance: '', type: AccountType.BANK },
+    { id: uid(), name: '', balance: '', type: AccountType.BANK },
   ])
 
   // Step 3 – investments
@@ -120,7 +120,7 @@ export function SetupWizard() {
   ) =>
     setter((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), name: '', balance: '', type },
+      { id: uid(), name: '', balance: '', type },
     ])
 
   const updateRow = (
@@ -170,7 +170,7 @@ export function SetupWizard() {
 
     for (const row of rowsToCreate) {
       addAccount({
-        id: crypto.randomUUID(),
+        id: uid(),
         userId,
         name: row.name.trim(),
         type: row.type,

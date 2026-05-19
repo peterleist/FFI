@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useAppStore } from '@/lib/store'
 import { AccountType } from '@/lib/types'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, uid } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { Account } from '@/lib/types'
 
@@ -286,7 +286,7 @@ export default function SettingsPage() {
 
   const handleAdd = (form: AccountForm) => {
     addAccount({
-      id: crypto.randomUUID(),
+      id: uid(),
       userId: 'local-user',
       name: form.name.trim(),
       type: form.type,
