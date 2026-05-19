@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { format } from 'date-fns'
 import { hu } from 'date-fns/locale'
-import { Plus, Search, Pencil, Trash2, Check } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, Check, Repeat } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,8 +23,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { RecurringPanel } from '@/components/recurring/recurring-panel'
 import { useAppStore } from '@/lib/store'
 import { TransactionStatus, CategoryType } from '@/lib/types'
+import { recurringAsTransactions } from '@/lib/recurring'
 import { formatCurrency } from '@/lib/utils'
 import { TransactionDialog } from '@/components/transactions/transaction-dialog'
 import { toast } from 'sonner'
@@ -41,9 +44,13 @@ const MONTH_OPTIONS = Array.from({ length: 6 }, (_, i) => {
   }
 })
 
+type Row = Transaction & { generated?: boolean; recurringId?: string }
+
 export default function TransactionsPage() {
-  const { transactions, accounts, categories, deleteTransaction, confirmTransaction } =
-    useAppStore()
+  const {
+    transactions, accounts, categories, recurringItems, trackingStartMonth,
+    deleteTransaction, confirmTransaction,
+  } = useAppStore()
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
@@ -53,9 +60,16 @@ export default function TransactionsPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [selectedStatus, setSelectedStatus] = useState<string>('all')
   const [page, setPage] = useState(1)
+  const [tab, setTab] = useState('list')
+
+  // Recurring items materialised as occurrences since the tracking-start month
+  const allRows = useMemo<Row[]>(
+    () => [...transactions, ...recurringAsTransactions(recurringItems, trackingStartMonth)],
+    [transactions, recurringItems, trackingStartMonth]
+  )
 
   const filtered = useMemo(() => {
-    return transactions
+    return allRows
       .filter((tx) => {
         if (selectedMonth !== 'all') {
           const [y, m] = selectedMonth.split('-').map(Number)
@@ -72,7 +86,7 @@ export default function TransactionsPage() {
         return true
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-  }, [transactions, selectedMonth, selectedAccount, selectedCategory, selectedStatus, search])
+  }, [allRows, selectedMonth, selectedAccount, selectedCategory, selectedStatus, search])
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE)
   const paged = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE)
@@ -115,16 +129,32 @@ export default function TransactionsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Tranzakciók</h1>
-          <p className="text-muted-foreground text-sm mt-0.5">{filtered.length} tranzakció</p>
+          <p className="text-muted-foreground text-sm mt-0.5">
+            Bevételek, kiadások és ismétlődő tételek
+          </p>
         </div>
-        <Button
-          onClick={openNew}
-          className="bg-primary hover:bg-primary/90 text-white gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Új tranzakció
-        </Button>
+        {tab === 'list' && (
+          <Button
+            onClick={openNew}
+            className="bg-primary hover:bg-primary/90 text-white gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Új tranzakció
+          </Button>
+        )}
       </div>
+
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="bg-muted border border-border">
+          <TabsTrigger value="list" className="data-[state=active]:bg-primary data-[state=active]:text-white">
+            Tranzakciók
+          </TabsTrigger>
+          <TabsTrigger value="recurring" className="data-[state=active]:bg-primary data-[state=active]:text-white">
+            Ismétlődő tételek
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="list" className="space-y-6 mt-4">
 
       {/* Filters */}
       <Card className="bg-card border-border">
@@ -244,8 +274,11 @@ export default function TransactionsPage() {
                     <TableCell className="text-muted-foreground text-sm">
                       {format(new Date(tx.date), 'MMM d.', { locale: hu })}
                     </TableCell>
-                    <TableCell className="text-foreground text-sm font-medium max-w-48 truncate">
-                      {tx.description}
+                    <TableCell className="text-foreground text-sm font-medium max-w-48">
+                      <span className="flex items-center gap-1.5">
+                        {tx.generated && <Repeat className="w-3 h-3 text-primary shrink-0" />}
+                        <span className="truncate">{tx.description}</span>
+                      </span>
                     </TableCell>
                     <TableCell>
                       <span className="text-sm text-muted-foreground">
@@ -253,7 +286,7 @@ export default function TransactionsPage() {
                       </span>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {getAccountName(tx.accountId)}
+                      {tx.generated ? '—' : getAccountName(tx.accountId)}
                     </TableCell>
                     <TableCell
                       className={`text-right font-semibold text-sm ${
@@ -263,46 +296,56 @@ export default function TransactionsPage() {
                       {tx.amount >= 0 ? '+' : ''}{formatCurrency(tx.amount)}
                     </TableCell>
                     <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={
-                          tx.status === TransactionStatus.CONFIRMED
-                            ? 'border-green-500/30 text-green-400 bg-green-500/10 text-xs'
-                            : 'border-amber-500/30 text-amber-400 bg-amber-500/10 text-xs'
-                        }
-                      >
-                        {tx.status === TransactionStatus.CONFIRMED ? 'Jóváhagyott' : 'Függőben'}
-                      </Badge>
+                      {tx.generated ? (
+                        <Badge variant="outline" className="border-primary/30 text-primary bg-primary/10 text-xs">
+                          Ismétlődő
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className={
+                            tx.status === TransactionStatus.CONFIRMED
+                              ? 'border-green-500/30 text-green-400 bg-green-500/10 text-xs'
+                              : 'border-amber-500/30 text-amber-400 bg-amber-500/10 text-xs'
+                          }
+                        >
+                          {tx.status === TransactionStatus.CONFIRMED ? 'Jóváhagyott' : 'Függőben'}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1">
-                        {tx.status === TransactionStatus.PENDING && (
+                      {tx.generated ? (
+                        <span className="text-[10px] text-muted-foreground">automatikus</span>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          {tx.status === TransactionStatus.PENDING && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-green-400 hover:text-green-300 hover:bg-green-500/10"
+                              onClick={() => handleConfirm(tx.id)}
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 text-green-400 hover:text-green-300 hover:bg-green-500/10"
-                            onClick={() => handleConfirm(tx.id)}
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
+                            onClick={() => openEdit(tx)}
                           >
-                            <Check className="w-3.5 h-3.5" />
+                            <Pencil className="w-3.5 h-3.5" />
                           </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-muted"
-                          onClick={() => openEdit(tx)}
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-red-400 hover:bg-red-500/10"
-                          onClick={() => handleDelete(tx.id)}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-red-400 hover:bg-red-500/10"
+                            onClick={() => handleDelete(tx.id)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
@@ -340,6 +383,12 @@ export default function TransactionsPage() {
           </div>
         )}
       </Card>
+        </TabsContent>
+
+        <TabsContent value="recurring" className="mt-4">
+          <RecurringPanel />
+        </TabsContent>
+      </Tabs>
 
       <TransactionDialog
         open={dialogOpen}

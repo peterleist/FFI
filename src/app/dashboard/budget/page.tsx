@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { format, startOfMonth, endOfMonth, isWithinInterval, subMonths } from 'date-fns'
 import { hu } from 'date-fns/locale'
-import { Pencil, Check, X } from 'lucide-react'
+import { Pencil, Check, X, Plus } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,6 +20,8 @@ import {
 import { useAppStore } from '@/lib/store'
 import { CategoryType, TransactionStatus } from '@/lib/types'
 import { formatCurrency } from '@/lib/utils'
+import { IncomePanel } from '@/components/budget/income-panel'
+import { recurringAsTransactions } from '@/lib/recurring'
 import { toast } from 'sonner'
 
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, i) => {
@@ -43,7 +45,13 @@ function getHeatColor(pct: number): string {
 }
 
 export default function BudgetPage() {
-  const { transactions, categories, updateCategory } = useAppStore()
+  const { transactions, categories, updateCategory, recurringItems, trackingStartMonth } = useAppStore()
+
+  // Real transactions + recurring occurrences — so recurring expenses count as spent
+  const allTxs = useMemo(
+    () => [...transactions, ...recurringAsTransactions(recurringItems, trackingStartMonth)],
+    [transactions, recurringItems, trackingStartMonth]
+  )
 
   const now = new Date()
   const [selectedValue, setSelectedValue] = useState(`${now.getFullYear()}-${now.getMonth()}`)
@@ -53,14 +61,14 @@ export default function BudgetPage() {
   const selected = MONTH_OPTIONS.find((m) => m.value === selectedValue) ?? MONTH_OPTIONS[0]
 
   const expenseCategories = categories.filter(
-    (c) => c.type === CategoryType.EXPENSE && c.monthlyBudget !== null
+    (c) => c.type === CategoryType.EXPENSE
   )
 
   const getSpentForCategory = (categoryId: string, year: number, month: number) => {
     const start = startOfMonth(new Date(year, month))
     const end = endOfMonth(new Date(year, month))
     return Math.abs(
-      transactions
+      allTxs
         .filter(
           (t) =>
             t.categoryId === categoryId &&
@@ -74,16 +82,19 @@ export default function BudgetPage() {
 
   const budgetSummary = useMemo(() => {
     const rows = expenseCategories.map((cat) => {
+      const hasBudget = cat.monthlyBudget !== null
       const spent = getSpentForCategory(cat.id, selected.year, selected.month)
       const budget = cat.monthlyBudget ?? 0
       const remaining = budget - spent
       const pct = budget > 0 ? (spent / budget) * 100 : 0
-      return { cat, spent, budget, remaining, pct }
+      return { cat, hasBudget, spent, budget, remaining, pct }
     })
+    // Categories with a budget set come first
+    rows.sort((a, b) => Number(b.hasBudget) - Number(a.hasBudget))
     const totalBudgeted = rows.reduce((s, r) => s + r.budget, 0)
     const totalSpent = rows.reduce((s, r) => s + r.spent, 0)
     return { rows, totalBudgeted, totalSpent, difference: totalBudgeted - totalSpent }
-  }, [expenseCategories, transactions, selected])
+  }, [expenseCategories, allTxs, selected])
 
   const startEdit = (catId: string, currentBudget: number | null) => {
     setEditingCategoryId(catId)
@@ -129,12 +140,15 @@ export default function BudgetPage() {
       </div>
 
       <Tabs defaultValue="monthly">
-        <TabsList className="bg-muted border border-border">
+        <TabsList className="bg-muted border border-border flex-wrap h-auto">
           <TabsTrigger value="monthly" className="data-[state=active]:bg-primary data-[state=active]:text-white">
             Havi nézet
           </TabsTrigger>
           <TabsTrigger value="annual" className="data-[state=active]:bg-primary data-[state=active]:text-white">
             Éves nézet
+          </TabsTrigger>
+          <TabsTrigger value="income" className="data-[state=active]:bg-primary data-[state=active]:text-white">
+            Várható bevételek
           </TabsTrigger>
         </TabsList>
 
@@ -178,15 +192,15 @@ export default function BudgetPage() {
               <CardTitle className="text-base text-foreground">Kategóriák</CardTitle>
             </CardHeader>
             <CardContent className="space-y-5">
-              {budgetSummary.rows.map(({ cat, spent, budget, remaining, pct }) => (
+              {budgetSummary.rows.map(({ cat, hasBudget, spent, budget, remaining, pct }) => (
                 <div key={cat.id} className="space-y-2">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="text-lg">{cat.icon}</span>
-                      <span className="text-sm font-medium text-foreground truncate">
+                      <span className={`text-sm font-medium truncate ${hasBudget ? 'text-foreground' : 'text-muted-foreground'}`}>
                         {cat.name}
                       </span>
-                      {pct > 100 && (
+                      {hasBudget && pct > 100 && (
                         <Badge className="bg-red-500/20 text-red-400 border-red-500/30 text-[10px] px-1.5 py-0 border">
                           Túllépve
                         </Badge>
@@ -199,12 +213,14 @@ export default function BudgetPage() {
                             type="number"
                             value={editBudget}
                             onChange={(e) => setEditBudget(e.target.value)}
-                            className="w-28 h-7 bg-muted border-border text-foreground text-sm"
+                            placeholder="Havi keret (Ft)"
+                            className="w-32 h-7 bg-muted border-border text-foreground text-sm"
+                            autoFocus
                           />
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 text-green-400 hover:bg-green-500/10"
+                            className="h-7 w-7 text-emerald-400 hover:bg-emerald-500/10"
                             onClick={() => saveEdit(cat.id)}
                           >
                             <Check className="w-3.5 h-3.5" />
@@ -218,7 +234,7 @@ export default function BudgetPage() {
                             <X className="w-3.5 h-3.5" />
                           </Button>
                         </div>
-                      ) : (
+                      ) : hasBudget ? (
                         <>
                           <span
                             className={`text-sm font-semibold ${
@@ -240,23 +256,37 @@ export default function BudgetPage() {
                             <Pencil className="w-3 h-3" />
                           </Button>
                         </>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs border-border text-muted-foreground hover:text-foreground hover:bg-muted gap-1"
+                          onClick={() => startEdit(cat.id, null)}
+                        >
+                          <Plus className="w-3 h-3" />
+                          Keret hozzáadása
+                        </Button>
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <Progress
-                      value={Math.min(pct, 100)}
-                      className="flex-1 h-2 bg-muted"
-                    />
-                    <span className="text-xs text-muted-foreground w-10 text-right">
-                      {pct.toFixed(0)}%
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {remaining >= 0
-                      ? `Maradék: ${formatCurrency(remaining)}`
-                      : `Túllépés: ${formatCurrency(Math.abs(remaining))}`}
-                  </p>
+                  {hasBudget && (
+                    <>
+                      <div className="flex items-center gap-3">
+                        <Progress
+                          value={Math.min(pct, 100)}
+                          className="flex-1 h-2 bg-muted"
+                        />
+                        <span className="text-xs text-muted-foreground w-10 text-right">
+                          {pct.toFixed(0)}%
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {remaining >= 0
+                          ? `Maradék: ${formatCurrency(remaining)}`
+                          : `Túllépés: ${formatCurrency(Math.abs(remaining))}`}
+                      </p>
+                    </>
+                  )}
                 </div>
               ))}
             </CardContent>
@@ -309,6 +339,10 @@ export default function BudgetPage() {
               </table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="income" className="mt-4">
+          <IncomePanel year={selected.year} month={selected.month} />
         </TabsContent>
       </Tabs>
     </div>

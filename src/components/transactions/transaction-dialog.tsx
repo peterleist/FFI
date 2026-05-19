@@ -142,14 +142,15 @@ export function TransactionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-card border-border text-foreground max-w-md">
-        <DialogHeader>
+      <DialogContent className="bg-card border-border text-foreground max-w-md max-h-[90vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
           <DialogTitle className="text-foreground">
             {transaction ? 'Tranzakció szerkesztése' : 'Új tranzakció'}
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+        <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
+          <div className="space-y-4 px-6 pt-1 pb-3 overflow-y-auto flex-1">
           {/* Type toggle */}
           <div>
             <Label className="text-muted-foreground text-xs mb-2 block">Típus</Label>
@@ -300,7 +301,8 @@ export function TransactionDialog({
             </div>
           )}
 
-          <div className="flex gap-3 pt-2">
+          </div>
+          <div className="flex gap-3 px-6 py-4 border-t border-border shrink-0">
             <Button
               type="button"
               variant="outline"

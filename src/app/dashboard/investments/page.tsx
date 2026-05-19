@@ -15,13 +15,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table'
-import { Input } from '@/components/ui/input'
 import { useAppStore } from '@/lib/store'
 import { AccountType, type Account } from '@/lib/types'
 import { formatCurrency } from '@/lib/utils'
 import { TradeDialog } from '@/components/investments/trade-dialog'
 import { TbszDetailDialog } from '@/components/investments/tbsz-detail-dialog'
 import { CustomViewDialog } from '@/components/investments/custom-view-dialog'
+import { AllampapirPanel } from '@/components/investments/allampapir-panel'
 import { useQuotes, getAssetMeta, toYahooSymbol, useFxRates, toHuf, type QuoteResult } from '@/lib/market-data'
 import type { CustomPortfolioView } from '@/lib/store'
 import { format } from 'date-fns'
@@ -42,7 +42,6 @@ export default function InvestmentsPage() {
 
   const [tradeDialogOpen, setTradeDialogOpen] = useState(false)
   const [preselectedAccountId, setPreselectedAccountId] = useState<string | undefined>()
-  const [allampapirRate, setAllampapirRate] = useState('7.5')
 
   // TBSZ detail dialog
   const [detailAccount, setDetailAccount] = useState<string | null>(null)
@@ -101,17 +100,33 @@ export default function InvestmentsPage() {
       .sort((a, b) => b.value - a.value)
   }, [enrichedPositions])
 
+  // Exposure breakdowns (sector / region / asset class / currency), HUF value
+  const breakdowns = useMemo(() => {
+    const group = (keyFn: (p: typeof enrichedPositions[number]) => string) => {
+      const map: Record<string, number> = {}
+      for (const p of enrichedPositions) {
+        const k = keyFn(p) || 'Egyéb'
+        map[k] = (map[k] ?? 0) + p.marketValueHuf
+      }
+      return Object.entries(map)
+        .map(([name, value]) => ({ name, value }))
+        .filter((d) => d.value > 0)
+        .sort((a, b) => b.value - a.value)
+    }
+    return {
+      sector: group((p) => p.meta.sector),
+      region: group((p) => p.meta.region),
+      assetClass: group((p) => p.meta.assetClass),
+      currency: group((p) => p.currency),
+    }
+  }, [enrichedPositions])
+
   const getPositionsForAccount = (accountId: string) =>
     enrichedPositions.filter((p) => p.accountId === accountId)
   const getTradesForPosition = (positionId: string) =>
     investmentTrades.filter((t) => t.positionId === positionId)
   const getRawPositionsForAccount = (accountId: string) =>
     investmentPositions.filter((p) => p.accountId === accountId)
-
-  const allampapirTotal = allampapirAccounts.reduce((s, a) => s + a.balance, 0)
-  const annualRate = parseFloat(allampapirRate) / 100
-  const annualInterest = allampapirTotal * annualRate
-  const monthlyInterest = annualInterest / 12
 
   const openTradeDialog = (accountId?: string) => {
     setPreselectedAccountId(accountId)
@@ -336,6 +351,19 @@ export default function InvestmentsPage() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Exposure analysis */}
+          {enrichedPositions.length > 0 && (
+            <div className="space-y-2">
+              <h2 className="text-sm font-semibold text-foreground px-0.5">Kitettség elemzés</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                <BreakdownCard title="Szektor kitettség" data={breakdowns.sector} total={totalMarketValue} />
+                <BreakdownCard title="Régió szerint" data={breakdowns.region} total={totalMarketValue} />
+                <BreakdownCard title="Eszköztípus" data={breakdowns.assetClass} total={totalMarketValue} />
+                <BreakdownCard title="Deviza kitettség" data={breakdowns.currency} total={totalMarketValue} />
+              </div>
+            </div>
+          )}
         </TabsContent>
 
         {/* ── TBSZ Accounts ───────────────────────────────────────────────── */}
@@ -508,58 +536,8 @@ export default function InvestmentsPage() {
         </TabsContent>
 
         {/* ── Állampapír ──────────────────────────────────────────────────── */}
-        <TabsContent value="allampapir" className="space-y-4 mt-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="text-base text-foreground">Magyar Állampapír</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {allampapirAccounts.map((acc) => (
-                  <div key={acc.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                    <span className="text-sm font-medium text-foreground">{acc.name}</span>
-                    <span className="text-sm font-bold text-amber-400">{formatCurrency(acc.balance)}</span>
-                  </div>
-                ))}
-                <div className="border-t border-border pt-3 flex justify-between">
-                  <span className="text-sm text-muted-foreground">Összesen</span>
-                  <span className="text-sm font-bold text-foreground">{formatCurrency(allampapirTotal)}</span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-card border-border">
-              <CardHeader>
-                <CardTitle className="text-base text-foreground">Hozam kalkulátor</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1.5">Éves kamatláb (%)</p>
-                  <Input
-                    type="number" value={allampapirRate}
-                    onChange={(e) => setAllampapirRate(e.target.value)}
-                    className="bg-muted border-border text-foreground"
-                    step="0.1" min="0"
-                  />
-                </div>
-                <div className="space-y-3">
-                  {[
-                    ['Éves kamatbevétel', annualInterest],
-                    ['Havi kamatbevétel', monthlyInterest],
-                  ].map(([label, val]) => (
-                    <div key={label as string} className="flex justify-between items-center p-3 bg-muted rounded-lg">
-                      <span className="text-sm text-muted-foreground">{label as string}</span>
-                      <span className="text-sm font-bold text-green-400">{formatCurrency(val as number)}</span>
-                    </div>
-                  ))}
-                  <div className="flex justify-between items-center p-3 bg-muted border border-border rounded-lg">
-                    <span className="text-sm text-primary">Napi kamatbevétel</span>
-                    <span className="text-sm font-bold text-primary">{formatCurrency(annualInterest / 365)}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+        <TabsContent value="allampapir" className="mt-4">
+          <AllampapirPanel accounts={allampapirAccounts} />
         </TabsContent>
 
         {/* ── Custom views ─────────────────────────────────────────────────── */}
@@ -686,6 +664,58 @@ function PriceCell({
         {formatCurrency(toHuf(amount, currency, fxRates))}
       </span>
     </span>
+  )
+}
+
+// ── Exposure breakdown donut card ─────────────────────────────────────────────
+
+function BreakdownCard({
+  title, data, total,
+}: {
+  title: string
+  data: { name: string; value: number }[]
+  total: number
+}) {
+  return (
+    <Card className="bg-card border-border">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm text-foreground">{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {data.length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center py-12">Nincs adat</p>
+        ) : (
+          <>
+            <ResponsiveContainer width="100%" height={140}>
+              <PieChart>
+                <Pie data={data} cx="50%" cy="50%" innerRadius={38} outerRadius={60}
+                  paddingAngle={3} dataKey="value" stroke="none">
+                  {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                </Pie>
+                <Tooltip
+                  formatter={(v) => formatCurrency(Number(v))}
+                  contentStyle={{ backgroundColor: '#18191D', border: '1px solid #27282E', borderRadius: 8, color: '#E4E4E7' }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="space-y-1.5 mt-2">
+              {data.map((d, i) => {
+                const pct = total > 0 ? (d.value / total) * 100 : 0
+                return (
+                  <div key={d.name} className="flex items-center justify-between text-xs gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                      <span className="text-foreground truncate">{d.name}</span>
+                    </div>
+                    <span className="text-muted-foreground shrink-0 tabular-nums">{pct.toFixed(1)}%</span>
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
