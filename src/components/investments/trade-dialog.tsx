@@ -29,10 +29,11 @@ import { toast } from 'sonner'
 import { resolveTicker } from '@/lib/market-data'
 import type { TickerSearchResult } from '@/app/api/market-data/search/route'
 
-const CURRENCIES = ['HUF', 'EUR', 'USD'] as const
+// Trades are always in a foreign currency — never HUF.
+const CURRENCIES = ['EUR', 'USD'] as const
 type Currency = typeof CURRENCIES[number]
 
-const CURRENCY_SYMBOLS: Record<Currency, string> = { HUF: 'Ft', EUR: '€', USD: '$' }
+const CURRENCY_SYMBOLS: Record<Currency, string> = { EUR: '€', USD: '$' }
 
 interface TradeDialogProps {
   open: boolean
@@ -57,9 +58,13 @@ export function TradeDialog({ open, onOpenChange, preselectedAccountId }: TradeD
   const [ticker, setTicker] = useState('')          // confirmed, only set via a validated selection
   const [tickerName, setTickerName] = useState('')
 
-  const [currency, setCurrency] = useState<Currency>('HUF')
+  const [currency, setCurrency] = useState<Currency>('EUR')
+  const [fxRate, setFxRate] = useState<number | null>(null)
+  const [rateLoading, setRateLoading] = useState(false)
   const [quantity, setQuantity] = useState('')
   const [price, setPrice] = useState('')
+  const [priceHuf, setPriceHuf] = useState('')
+  const [priceSource, setPriceSource] = useState<'native' | 'huf'>('native')
   const [fee, setFee] = useState('0')
   const [date, setDate] = useState<Date>(new Date())
   const [note, setNote] = useState('')
@@ -74,8 +79,8 @@ export function TradeDialog({ open, onOpenChange, preselectedAccountId }: TradeD
     setTradeType(TradeType.BUY)
     setQuery(''); setSearchResults([]); setShowSuggestions(false)
     setTicker(''); setTickerName('')
-    setCurrency('HUF')
-    setQuantity(''); setPrice(''); setFee('0'); setNote('')
+    setCurrency('EUR')
+    setQuantity(''); setPrice(''); setPriceHuf(''); setPriceSource('native'); setFee('0'); setNote('')
     setDate(new Date())
   }, [open])
 
@@ -130,10 +135,37 @@ export function TradeDialog({ open, onOpenChange, preselectedAccountId }: TradeD
     }
   }
 
+  // Auto-fetch the daily HUF exchange rate for the chosen trade date
+  useEffect(() => {
+    let cancelled = false
+    setRateLoading(true)
+    const iso = date.toISOString().slice(0, 10)
+    fetch(`/api/market-data/mnb-rate?date=${iso}`)
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled) setFxRate(currency === 'EUR' ? d.EUR : d.USD) })
+      .catch(() => { if (!cancelled) setFxRate(null) })
+      .finally(() => { if (!cancelled) setRateLoading(false) })
+    return () => { cancelled = true }
+  }, [date, currency])
+
+  // When fxRate reloads (date/currency change), re-sync the non-source field
+  useEffect(() => {
+    if (!fxRate) return
+    if (priceSource === 'native' && price) {
+      const n = parseFloat(price)
+      if (!isNaN(n)) setPriceHuf((n * fxRate).toFixed(0))
+    } else if (priceSource === 'huf' && priceHuf) {
+      const n = parseFloat(priceHuf)
+      if (!isNaN(n)) setPrice((n / fxRate).toFixed(4))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fxRate])
+
   const totalValue = useMemo(
     () => (parseFloat(quantity) || 0) * (parseFloat(price) || 0),
     [quantity, price]
   )
+  const feeValue = parseFloat(fee) || 0
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -399,21 +431,77 @@ export function TradeDialog({ open, onOpenChange, preselectedAccountId }: TradeD
                 type="number"
                 placeholder="0"
                 value={price}
-                onChange={(e) => setPrice(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value
+                  setPriceSource('native')
+                  setPrice(val)
+                  const n = parseFloat(val)
+                  if (!isNaN(n) && fxRate) setPriceHuf((n * fxRate).toFixed(0))
+                  else if (!val) setPriceHuf('')
+                }}
                 className="bg-muted border-border text-foreground"
                 min="0"
-                step={currency === 'HUF' ? '1' : '0.01'}
+                step="0.01"
               />
             </div>
           </div>
 
-          {/* Total preview */}
+          {/* HUF price — back-calculate native price from HUF when fxRate available */}
+          {fxRate && (
+            <div>
+              <Label className="text-muted-foreground text-xs mb-1.5 block">
+                Egységár (Ft) — vagy forintból számolj vissza
+              </Label>
+              <Input
+                type="number"
+                placeholder="0"
+                value={priceHuf}
+                onChange={(e) => {
+                  const val = e.target.value
+                  setPriceSource('huf')
+                  setPriceHuf(val)
+                  const n = parseFloat(val)
+                  if (!isNaN(n) && fxRate) setPrice((n / fxRate).toFixed(4))
+                  else if (!val) setPrice('')
+                }}
+                className="bg-muted border-border text-foreground"
+                min="0"
+                step="1"
+              />
+            </div>
+          )}
+
+          {/* Total + daily FX summary */}
           {totalValue > 0 && (
-            <div className="bg-muted rounded-lg px-3 py-2 flex justify-between">
-              <span className="text-xs text-muted-foreground">Összérték</span>
-              <span className="text-sm font-semibold text-foreground">
-                {formatCurrency(totalValue, currency)}
-              </span>
+            <div className="bg-muted rounded-lg px-3 py-2.5 space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-xs text-muted-foreground">Összérték ({CURRENCY_SYMBOLS[currency]})</span>
+                <span className="text-sm font-semibold text-foreground">
+                  {formatCurrency(totalValue, currency)}
+                </span>
+              </div>
+              {feeValue > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-xs text-muted-foreground">Jutalék</span>
+                  <span className="text-xs text-foreground">{formatCurrency(feeValue, currency)}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-xs text-muted-foreground">
+                  Napi árfolyam · {date.toISOString().slice(0, 10)}
+                </span>
+                <span className="text-xs text-foreground tabular-nums">
+                  {rateLoading ? '…' : fxRate ? `${fxRate.toFixed(2)} Ft/${currency}` : 'n/a'}
+                </span>
+              </div>
+              {fxRate && (
+                <div className="flex justify-between border-t border-border pt-1.5">
+                  <span className="text-xs text-muted-foreground">Összesen forintban</span>
+                  <span className="text-sm font-semibold text-foreground tabular-nums">
+                    {formatCurrency((totalValue + feeValue) * fxRate, 'HUF')}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 

@@ -209,7 +209,7 @@ function AccountRow({
       </div>
 
       <span className="text-sm font-semibold text-foreground shrink-0">
-        {formatCurrency(account.balance)}
+        {formatCurrency(account.balance, account.currency)}
       </span>
 
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

@@ -22,7 +22,7 @@ import { TradeDialog } from '@/components/investments/trade-dialog'
 import { TbszDetailDialog } from '@/components/investments/tbsz-detail-dialog'
 import { CustomViewDialog } from '@/components/investments/custom-view-dialog'
 import { AllampapirPanel } from '@/components/investments/allampapir-panel'
-import { useQuotes, getAssetMeta, toYahooSymbol, useFxRates, toHuf, type QuoteResult } from '@/lib/market-data'
+import { useQuotes, getAssetMeta, getKnownCurrency, toYahooSymbol, useFxRates, toHuf, type QuoteResult } from '@/lib/market-data'
 import type { CustomPortfolioView } from '@/lib/store'
 import { format } from 'date-fns'
 import { hu } from 'date-fns/locale'
@@ -63,8 +63,9 @@ export default function InvestmentsPage() {
       const q = quotes[pos.ticker]
       const livePrice = q?.price ?? pos.currentPrice
       const meta = getAssetMeta(pos.ticker)
-      // meta.currency is the authoritative source; fixes positions created before currency selector
-      const currency = meta.currency || pos.currency
+      // Known-registry currency wins (authoritative for AAPL, VWCE, etc.);
+      // for unregistered tickers fall back to the currency the user selected at trade entry.
+      const currency = getKnownCurrency(pos.ticker) || pos.currency || 'HUF'
       // Native-currency figures
       const marketValue = pos.quantity * livePrice
       const cost = pos.quantity * pos.averageBuyPrice
@@ -189,7 +190,7 @@ export default function InvestmentsPage() {
               <div className="flex items-start justify-between flex-wrap gap-6">
                 <div className="min-w-0">
                   <p className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">
-                    Portfólió piaci értéke
+                    Portfólió piaci értéke · HUF
                   </p>
                   <p className="text-4xl font-bold text-foreground tracking-tight mt-1.5 tabular-nums">
                     {formatCurrency(totalMarketValue)}
@@ -209,7 +210,7 @@ export default function InvestmentsPage() {
                 </div>
                 <div className="flex gap-3">
                   <div className="bg-muted rounded-xl px-4 py-3 min-w-[140px]">
-                    <p className="text-[11px] text-muted-foreground">Bekerülési költség</p>
+                    <p className="text-[11px] text-muted-foreground">Bekerülési költség · HUF</p>
                     <p className="text-lg font-bold text-foreground mt-0.5 tabular-nums">
                       {formatCurrency(totalCost)}
                     </p>
@@ -226,7 +227,7 @@ export default function InvestmentsPage() {
           </Card>
 
           <PortfolioGrowthChart
-            positions={enrichedPositions.map((p) => ({ ticker: p.ticker, quantity: p.quantity }))}
+            positions={enrichedPositions.map((p) => ({ ticker: p.ticker, quantity: p.quantity, currency: p.currency }))}
             fxRates={fxRates}
           />
 
@@ -804,7 +805,7 @@ function PortfolioAreaChart({ data }: { data: { date: string; value: number }[] 
 function PortfolioGrowthChart({
   positions, fxRates,
 }: {
-  positions: { ticker: string; quantity: number }[]
+  positions: { ticker: string; quantity: number; currency: string }[]
   fxRates: ReturnType<typeof useFxRates>['rates']
 }) {
   const [selectedRange, setSelectedRange] = useState(GROWTH_RANGES[6])
@@ -820,7 +821,11 @@ function PortfolioGrowthChart({
     const uniqueTickers = [...new Set(positions.map((p) => p.ticker))]
     // Quantity and currency per ticker
     const qtyByTicker: Record<string, number> = {}
-    for (const p of positions) qtyByTicker[p.ticker] = (qtyByTicker[p.ticker] ?? 0) + p.quantity
+    const currencyByTicker: Record<string, string> = {}
+    for (const p of positions) {
+      qtyByTicker[p.ticker] = (qtyByTicker[p.ticker] ?? 0) + p.quantity
+      currencyByTicker[p.ticker] = getKnownCurrency(p.ticker) || p.currency || 'HUF'
+    }
 
     Promise.all(
       uniqueTickers.map((ticker) =>
@@ -850,7 +855,7 @@ function PortfolioGrowthChart({
           if (map[date] != null) lastPrice[ticker] = map[date]
           if (lastPrice[ticker] != null) {
             // Convert native price to HUF before aggregating across currencies
-            const currency = getAssetMeta(ticker).currency || 'HUF'
+            const currency = currencyByTicker[ticker] ?? 'HUF'
             const priceHuf = toHuf(lastPrice[ticker], currency, fxRates)
             total += priceHuf * (qtyByTicker[ticker] ?? 0)
             hasAny = true
@@ -988,11 +993,11 @@ function CustomViewCard({
       <CardContent>
         <div className="grid grid-cols-3 gap-3 mb-4">
           <div className="bg-muted rounded-lg p-3">
-            <p className="text-xs text-muted-foreground">Összértéke</p>
+            <p className="text-xs text-muted-foreground">Összértéke · HUF</p>
             <p className="text-base font-bold text-foreground mt-0.5">{formatCurrency(totalValue)}</p>
           </div>
           <div className="bg-muted rounded-lg p-3">
-            <p className="text-xs text-muted-foreground">P&L</p>
+            <p className="text-xs text-muted-foreground">P&L · HUF</p>
             <p className={`text-base font-bold mt-0.5 ${totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
               {totalPnl >= 0 ? '+' : ''}{formatCurrency(totalPnl)}
             </p>

@@ -113,7 +113,7 @@ export default function FirePage() {
         <div className="row between" style={{ flexWrap: 'wrap', gap: 18, alignItems: 'flex-start' }}>
           <div>
             <div className="lbl" style={{ color: 'var(--pf-muted)', fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', fontFamily: 'var(--font-mono)' }}>
-              Pénzügyi függetlenség
+              Pénzügyi függetlenség · HUF
             </div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginTop: 6 }}>
               <div className="num" style={{ fontSize: 50, fontWeight: 600, letterSpacing: '-.03em' }}>
