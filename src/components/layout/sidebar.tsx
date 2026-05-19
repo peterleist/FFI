@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState } from 'react'
 import {
-  LayoutDashboard, ArrowLeftRight, PieChart, Upload,
+  LayoutDashboard, ArrowLeftRight, BarChart3, PieChart, Upload,
   TrendingUp, Flame, Settings, Menu, X,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
@@ -15,12 +15,13 @@ import { formatCurrency } from '@/lib/utils'
 const WORKSPACE = [
   { label: 'Áttekintő', icon: LayoutDashboard, href: '/dashboard', kbd: '1' },
   { label: 'Tranzakciók', icon: ArrowLeftRight, href: '/dashboard/transactions', kbd: '2' },
-  { label: 'Költségvetés', icon: PieChart, href: '/dashboard/budget', kbd: '3' },
-  { label: 'Import', icon: Upload, href: '/dashboard/import', kbd: '4' },
-  { label: 'Befektetések', icon: TrendingUp, href: '/dashboard/investments', kbd: '5' },
-  { label: 'FIRE Tervező', icon: Flame, href: '/dashboard/fire', kbd: '6' },
+  { label: 'Kiadáselemzés', icon: BarChart3, href: '/dashboard/spending', kbd: '3' },
+  { label: 'Költségvetés', icon: PieChart, href: '/dashboard/budget', kbd: '4' },
+  { label: 'Import', icon: Upload, href: '/dashboard/import', kbd: '5' },
+  { label: 'Befektetések', icon: TrendingUp, href: '/dashboard/investments', kbd: '6' },
+  { label: 'FIRE Tervező', icon: Flame, href: '/dashboard/fire', kbd: '7' },
 ]
-const SETTINGS_ITEM = { label: 'Beállítások', icon: Settings, href: '/dashboard/settings', kbd: '7' }
+const SETTINGS_ITEM = { label: 'Beállítások', icon: Settings, href: '/dashboard/settings', kbd: '8' }
 
 function FlameMark({ size = 13 }: { size?: number }) {
   return (
