@@ -245,7 +245,13 @@ export default function TransactionsPage() {
                           <span className="tx-cat-dot" style={{ background: cat?.color || '#94A3B8' }} />
                           <span>{cat?.name ?? 'Egyéb'}</span>
                         </div>
-                        <div className="tx-acct">{t.generated ? '—' : (acct?.name ?? '—')}</div>
+                        <div className="tx-acct">
+                          {t.generated
+                            ? '—'
+                            : t.transferAccountId
+                              ? `${acct?.name ?? '?'} → ${acctOf(t.transferAccountId)?.name ?? '?'}`
+                              : (acct?.name ?? '—')}
+                        </div>
                         <div className="tx-amt num" data-in={isIn ? 'true' : 'false'}>
                           {isIn ? '+' : '−'}{formatCurrency(Math.abs(t.amount))}
                         </div>

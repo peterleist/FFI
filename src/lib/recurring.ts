@@ -112,6 +112,7 @@ export function recurringAsTransactions(
     id: o.id,
     userId: 'local-user',
     accountId: '',
+    transferAccountId: null,
     categoryId: o.categoryId,
     amount: o.amount,
     date: o.date,

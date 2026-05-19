@@ -22,25 +22,25 @@ import { hu } from 'date-fns/locale'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 
-const BANK_FORMATS = [
-  { value: 'otp', label: 'OTP Bank' },
-  { value: 'erste', label: 'Erste Bank' },
-  { value: 'kh', label: 'K&H Bank' },
-  { value: 'raiffeisen', label: 'Raiffeisen Bank' },
-  { value: 'generic', label: 'Általános CSV (dátum;leírás;összeg)' },
-]
+// ── PEFI CSV formátum ─────────────────────────────────────────────────────────
+// Egyetlen elfogadott formátum, pontosvesszővel tagolva:
+//   dátum;leírás;összeg;kategória
+// Példa:  2024.05.01;Élelmiszer vásárlás;-15000;Élelmiszer
+
+const CSV_EXAMPLE = `dátum;leírás;összeg;kategória
+2024.05.01;Élelmiszer vásárlás;-15000;Élelmiszer
+2024.05.05;Havi fizetés;650000;Fizetés
+2024.05.08;Étterem;-8900;Étterem`
 
 function parseHungarianAmount(s: string): number {
   if (!s) return 0
-  // Remove spaces, replace comma with dot for decimals
   const cleaned = s.replace(/\s/g, '').replace(',', '.')
   return parseFloat(cleaned) || 0
 }
 
 function parseHungarianDate(s: string): Date {
   if (!s) return new Date()
-  // Common formats: 2024.01.15, 2024-01-15, 15/01/2024
-  const parts = s.split(/[.\-\/]/)
+  const parts = s.split(/[.\-/]/)
   if (parts.length === 3) {
     const [a, b, c] = parts.map(Number)
     if (a > 1000) return new Date(a, b - 1, c) // yyyy.mm.dd
@@ -49,48 +49,30 @@ function parseHungarianDate(s: string): Date {
   return new Date(s)
 }
 
-function parseOTP(rows: string[][]): Partial<Transaction>[] {
-  // OTP format: date;description;amount;balance (skip first row if header)
-  const dataRows = rows.filter((r) => r.length >= 3)
-  return dataRows
+interface ParsedRow {
+  date: Date
+  description: string
+  amount: number
+  categoryId: string | null
+}
+
+/** Parses the single PEFI CSV format: dátum;leírás;összeg;kategória */
+function parseCsv(rows: string[][], catByName: Map<string, string>): ParsedRow[] {
+  return rows
+    .filter((r) => r.length >= 3 && r[0]?.trim())
     .filter((r) => {
-      const firstCell = r[0]?.trim()
-      if (!firstCell) return false
-      // Skip header rows
-      if (firstCell.toLowerCase().includes('dátum') || firstCell.toLowerCase().includes('date')) return false
-      return true
+      const f = r[0].trim().toLowerCase()
+      return !(f.includes('dátum') || f.includes('datum') || f.includes('date'))
     })
     .map((r) => {
-      const date = parseHungarianDate(r[0]?.trim() ?? '')
-      const description = r[1]?.trim() ?? ''
-      const amount = parseHungarianAmount(r[2]?.trim() ?? '0')
-      return { date, description, amount }
+      const catName = (r[3]?.trim() ?? '').toLowerCase()
+      return {
+        date: parseHungarianDate(r[0]?.trim() ?? ''),
+        description: r[1]?.trim() ?? '',
+        amount: parseHungarianAmount(r[2]?.trim() ?? '0'),
+        categoryId: catName ? (catByName.get(catName) ?? null) : null,
+      }
     })
-    .filter((r) => r.description)
-}
-
-function parseErste(rows: string[][]): Partial<Transaction>[] {
-  // Erste: date;beneficiary;amount;currency
-  return rows
-    .filter((r) => r.length >= 3 && r[0]?.trim())
-    .slice(1)
-    .map((r) => ({
-      date: parseHungarianDate(r[0]?.trim() ?? ''),
-      description: r[1]?.trim() ?? '',
-      amount: parseHungarianAmount(r[2]?.trim() ?? '0'),
-    }))
-    .filter((r) => r.description)
-}
-
-function parseGeneric(rows: string[][]): Partial<Transaction>[] {
-  return rows
-    .filter((r) => r.length >= 3 && r[0]?.trim())
-    .slice(1)
-    .map((r) => ({
-      date: parseHungarianDate(r[0]?.trim() ?? ''),
-      description: r[1]?.trim() ?? '',
-      amount: parseHungarianAmount(r[2]?.trim() ?? '0'),
-    }))
     .filter((r) => r.description)
 }
 
@@ -108,7 +90,6 @@ export default function ImportPage() {
   const { accounts, categories, setPendingImportBatch, confirmImportBatch } = useAppStore()
 
   const [step, setStep] = useState<1 | 2>(1)
-  const [bankFormat, setBankFormat] = useState('otp')
   const [selectedAccountId, setSelectedAccountId] = useState(accounts[0]?.id ?? '')
   const [isDragging, setIsDragging] = useState(false)
   const [rows, setRows] = useState<ImportRow[]>([])
@@ -126,31 +107,32 @@ export default function ImportPage() {
         delimiter: ';',
         skipEmptyLines: true,
         complete: (result) => {
-          let parsed: Partial<Transaction>[] = []
-          if (bankFormat === 'otp') parsed = parseOTP(result.data)
-          else if (bankFormat === 'erste') parsed = parseErste(result.data)
-          else parsed = parseGeneric(result.data)
+          const catByName = new Map(
+            categories.map((c) => [c.name.toLowerCase().trim(), c.id])
+          )
+          const parsed = parseCsv(result.data, catByName)
 
           const importRows: ImportRow[] = parsed.map((p, i) => ({
             id: `import-${Date.now()}-${i}`,
-            date: p.date ?? new Date(),
-            description: p.description ?? '',
-            amount: p.amount ?? 0,
+            date: p.date,
+            description: p.description,
+            amount: p.amount,
             accountId: selectedAccountId,
-            categoryId: null,
+            categoryId: p.categoryId,
             selected: true,
           }))
 
           setRows(importRows)
           setStep(2)
-          toast.success(`${importRows.length} tranzakció betöltve`)
+          const matched = importRows.filter((r) => r.categoryId).length
+          toast.success(`${importRows.length} tranzakció betöltve · ${matched} kategória felismerve`)
         },
         error: () => {
           toast.error('Hiba a fájl feldolgozása közben')
         },
       })
     },
-    [bankFormat, selectedAccountId]
+    [selectedAccountId, categories]
   )
 
   const handleDrop = useCallback(
@@ -187,6 +169,7 @@ export default function ImportPage() {
       id: r.id,
       userId: 'local-user',
       accountId: r.accountId,
+      transferAccountId: null,
       categoryId: r.categoryId,
       amount: r.amount,
       date: r.date,
@@ -228,21 +211,6 @@ export default function ImportPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <p className="text-xs text-muted-foreground mb-1.5">Bank formátum</p>
-                <Select value={bankFormat} onValueChange={setBankFormat}>
-                  <SelectTrigger className="bg-muted border-border text-foreground">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-card border-border">
-                    {BANK_FORMATS.map((f) => (
-                      <SelectItem key={f.value} value={f.value} className="text-foreground">
-                        {f.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
                 <p className="text-xs text-muted-foreground mb-1.5">Célszámla</p>
                 <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
                   <SelectTrigger className="bg-muted border-border text-foreground">
@@ -257,21 +225,25 @@ export default function ImportPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <p className="text-xs text-muted-foreground">
+                Az importált tételek a kiválasztott számlára kerülnek. A CSV-ben
+                megadott kategóriát automatikusan párosítjuk a meglévő kategóriákhoz.
+              </p>
             </CardContent>
           </Card>
 
           <Card className="bg-card border-border md:col-span-1">
             <CardHeader>
-              <CardTitle className="text-base text-foreground">OTP CSV formátum</CardTitle>
+              <CardTitle className="text-base text-foreground">PEFI CSV formátum</CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-xs text-muted-foreground">
-                Az OTP Bank internet bankjából exportált CSV fájl formátuma:
+                Pontosvesszővel tagolt fájl, négy oszloppal:{' '}
+                <span className="text-foreground font-medium">dátum · leírás · összeg · kategória</span>.
+                A negatív összeg kiadás, a pozitív bevétel.
               </p>
               <pre className="mt-2 text-xs bg-muted rounded p-3 text-muted-foreground overflow-x-auto">
-                {`dátum;leírás;összeg;egyenleg
-2024.05.01;Élelmiszer;-15000;1235000
-2024.05.05;Fizetés;650000;1885000`}
+                {CSV_EXAMPLE}
               </pre>
             </CardContent>
           </Card>

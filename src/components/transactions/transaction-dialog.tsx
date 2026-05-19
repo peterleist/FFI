@@ -55,6 +55,7 @@ export function TransactionDialog({
 
   const [type, setType] = useState<'expense' | 'income' | 'transfer'>('expense')
   const [accountId, setAccountId] = useState('')
+  const [transferAccountId, setTransferAccountId] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState<Date>(new Date())
@@ -70,9 +71,11 @@ export function TransactionDialog({
       setDescription(transaction.description)
       setNote(transaction.note ?? '')
       setAccountId(transaction.accountId)
+      setTransferAccountId(transaction.transferAccountId ?? '')
       setCategoryId(transaction.categoryId ?? '')
       setIsRecurring(transaction.isRecurring)
-      if (transaction.amount > 0) setType('income')
+      if (transaction.transferAccountId) setType('transfer')
+      else if (transaction.amount > 0) setType('income')
       else {
         const cat = categories.find((c) => c.id === transaction.categoryId)
         setType(cat?.type === CategoryType.TRANSFER ? 'transfer' : 'expense')
@@ -80,6 +83,7 @@ export function TransactionDialog({
     } else {
       setType('expense')
       setAccountId(accounts[0]?.id ?? '')
+      setTransferAccountId('')
       setCategoryId('')
       setAmount('')
       setDate(new Date())
@@ -103,12 +107,24 @@ export function TransactionDialog({
       toast.error('Kérem töltse ki az összes kötelező mezőt!')
       return
     }
+    if (type === 'transfer') {
+      if (!transferAccountId) {
+        toast.error('Válassz célszámlát!')
+        return
+      }
+      if (transferAccountId === accountId) {
+        toast.error('A forrás és a cél számla nem lehet azonos!')
+        return
+      }
+    }
 
     const finalAmount = type === 'expense' || type === 'transfer' ? -parsedAmount : parsedAmount
+    const transferTo = type === 'transfer' ? transferAccountId : null
 
     if (transaction) {
       updateTransaction(transaction.id, {
         accountId,
+        transferAccountId: transferTo,
         categoryId: categoryId || null,
         amount: finalAmount,
         date,
@@ -123,6 +139,7 @@ export function TransactionDialog({
         id: `tx-${Date.now()}`,
         userId: 'local-user',
         accountId,
+        transferAccountId: transferTo,
         categoryId: categoryId || null,
         amount: finalAmount,
         date,
@@ -173,9 +190,11 @@ export function TransactionDialog({
             </div>
           </div>
 
-          {/* Account */}
+          {/* Account (source) */}
           <div>
-            <Label className="text-muted-foreground text-xs mb-1.5 block">Számla *</Label>
+            <Label className="text-muted-foreground text-xs mb-1.5 block">
+              {type === 'transfer' ? 'Forrás számla *' : 'Számla *'}
+            </Label>
             <Select value={accountId} onValueChange={setAccountId}>
               <SelectTrigger className="bg-muted border-border text-foreground">
                 <SelectValue placeholder="Válassz számlát" />
@@ -189,6 +208,27 @@ export function TransactionDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {/* Destination account (transfers only) */}
+          {type === 'transfer' && (
+            <div>
+              <Label className="text-muted-foreground text-xs mb-1.5 block">Cél számla *</Label>
+              <Select value={transferAccountId} onValueChange={setTransferAccountId}>
+                <SelectTrigger className="bg-muted border-border text-foreground">
+                  <SelectValue placeholder="Válassz célszámlát" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border">
+                  {accounts
+                    .filter((acc) => acc.id !== accountId)
+                    .map((acc) => (
+                      <SelectItem key={acc.id} value={acc.id} className="text-foreground">
+                        {acc.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Category */}
           <div>

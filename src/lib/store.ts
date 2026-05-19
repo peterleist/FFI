@@ -181,6 +181,25 @@ function withDefaultCategories(categories: Category[]): Category[] {
   return [...categories, ...makeDefaultCategories().filter((d) => !have.has(d.id))]
 }
 
+/**
+ * Applies (sign +1) or reverses (sign -1) a transaction's effect on balances.
+ * Source account (accountId) gets +amount; for transfers the destination
+ * (transferAccountId) gets −amount, moving the money between the two accounts.
+ */
+function applyTxBalance(
+  accounts: Account[],
+  tx: { accountId: string; transferAccountId?: string | null; amount: number },
+  sign: 1 | -1,
+): Account[] {
+  return accounts.map((a) => {
+    if (a.id === tx.accountId) return { ...a, balance: a.balance + sign * tx.amount }
+    if (tx.transferAccountId && a.id === tx.transferAccountId) {
+      return { ...a, balance: a.balance - sign * tx.amount }
+    }
+    return a
+  })
+}
+
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
@@ -234,40 +253,29 @@ export const useAppStore = create<AppState>()(
       pendingImportBatch: null,
 
       // ── Transaction actions ───────────────────────────────────────────────────
-      // Helper: bump account balance by delta (used inline below)
+      // Applies a transaction's balance effect. sign +1 = apply, -1 = reverse.
+      // For TRANSFER txs the source (accountId) gets +amount, the destination
+      // (transferAccountId) gets −amount, so the money moves between accounts.
       addTransaction: (tx) =>
         set((s) => ({
           transactions: [tx, ...s.transactions],
-          // Confirmed txs immediately affect balance; pending ones don't
           accounts:
             tx.status === TransactionStatus.CONFIRMED
-              ? s.accounts.map((a) =>
-                  a.id === tx.accountId ? { ...a, balance: a.balance + tx.amount } : a
-                )
+              ? applyTxBalance(s.accounts, tx, 1)
               : s.accounts,
         })),
       updateTransaction: (id, updates) =>
         set((s) => {
           const old = s.transactions.find((t) => t.id === id)
-          const updated = old ? { ...old, ...updates } : null
-
-          // Recompute balance delta when amount or account changes on a CONFIRMED tx
+          if (!old) return s
+          const updated = { ...old, ...updates }
           let accounts = s.accounts
-          if (old && updated && old.status === TransactionStatus.CONFIRMED) {
-            // Reverse the old amount on the old account
-            accounts = accounts.map((a) =>
-              a.id === old.accountId ? { ...a, balance: a.balance - old.amount } : a
-            )
-            // Apply the new amount on the new account (may be different account)
-            const newAccountId = updates.accountId ?? old.accountId
-            const newAmount = updates.amount ?? old.amount
-            accounts = accounts.map((a) =>
-              a.id === newAccountId ? { ...a, balance: a.balance + newAmount } : a
-            )
+          if (old.status === TransactionStatus.CONFIRMED) {
+            accounts = applyTxBalance(accounts, old, -1)
+            accounts = applyTxBalance(accounts, updated, 1)
           }
-
           return {
-            transactions: s.transactions.map((t) => (t.id === id ? { ...t, ...updates } : t)),
+            transactions: s.transactions.map((t) => (t.id === id ? updated : t)),
             accounts,
           }
         }),
@@ -276,12 +284,9 @@ export const useAppStore = create<AppState>()(
           const tx = s.transactions.find((t) => t.id === id)
           return {
             transactions: s.transactions.filter((t) => t.id !== id),
-            // Reverse the amount if it was confirmed
             accounts:
               tx && tx.status === TransactionStatus.CONFIRMED
-                ? s.accounts.map((a) =>
-                    a.id === tx.accountId ? { ...a, balance: a.balance - tx.amount } : a
-                  )
+                ? applyTxBalance(s.accounts, tx, -1)
                 : s.accounts,
           }
         }),
@@ -292,26 +297,14 @@ export const useAppStore = create<AppState>()(
             transactions: s.transactions.map((t) =>
               t.id === id ? { ...t, status: TransactionStatus.CONFIRMED } : t
             ),
-            // Now that it's confirmed, add it to account balance
-            accounts: tx
-              ? s.accounts.map((a) =>
-                  a.id === tx.accountId ? { ...a, balance: a.balance + tx.amount } : a
-                )
-              : s.accounts,
+            accounts: tx ? applyTxBalance(s.accounts, tx, 1) : s.accounts,
           }
         }),
       confirmAllPending: () =>
         set((s) => {
-          const pending = s.transactions.filter(
-            (t) => t.status === TransactionStatus.PENDING
-          )
-          // Apply all pending amounts to their accounts
-          const accounts = s.accounts.map((a) => {
-            const delta = pending
-              .filter((t) => t.accountId === a.id)
-              .reduce((sum, t) => sum + t.amount, 0)
-            return delta !== 0 ? { ...a, balance: a.balance + delta } : a
-          })
+          const pending = s.transactions.filter((t) => t.status === TransactionStatus.PENDING)
+          let accounts = s.accounts
+          for (const t of pending) accounts = applyTxBalance(accounts, t, 1)
           return {
             transactions: s.transactions.map((t) =>
               t.status === TransactionStatus.PENDING

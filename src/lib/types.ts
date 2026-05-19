@@ -61,6 +61,8 @@ export interface Transaction {
   id: string
   userId: string
   accountId: string
+  /** Destination account for TRANSFER transactions; null otherwise. */
+  transferAccountId: string | null
   categoryId: string | null
   amount: number
   date: Date
